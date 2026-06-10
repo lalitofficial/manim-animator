@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Manim Animator — Live Board</title>
+<style>
+  :root { --bg:#0e1116; --panel:#161b22; --border:#30363d; --accent:#58a6ff; --muted:#8b949e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:#e6edf3; height:100vh; display:flex; flex-direction:column; }
+  header { padding:12px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; }
+  header b { font-weight:600; }
+  header span { color:var(--muted); font-size:13px; }
+  .tabs { margin-left:auto; display:flex; gap:6px; }
+  .tabs button { background:transparent; color:var(--muted); border:1px solid var(--border);
+                 border-radius:8px; padding:6px 12px; font-weight:600; cursor:pointer; }
+  .tabs button.active { color:#04101f; background:var(--accent); border-color:var(--accent); }
+  main { flex:1; display:grid; grid-template-columns:340px 1fr; min-height:0; }
+  .controls { padding:18px; border-right:1px solid var(--border); display:flex; flex-direction:column; gap:12px; overflow:auto; }
+  textarea { width:100%; height:120px; resize:vertical; background:var(--panel);
+             color:#e6edf3; border:1px solid var(--border); border-radius:8px; padding:10px; font:inherit; }
+  button.primary { background:var(--accent); color:#04101f; border:0; border-radius:8px;
+                   padding:10px 14px; font-weight:600; cursor:pointer; }
+  button.primary:disabled { opacity:.5; cursor:default; }
+  label.toggle { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); cursor:pointer; }
+  .status { font-size:13px; color:var(--muted); min-height:18px; }
+  ol.segments { margin:0; padding-left:20px; font-size:13px; color:var(--muted); }
+  ol.segments li { margin:4px 0; }
+  ol.segments li.playing { color:var(--accent); font-weight:600; }
+  ol.segments li.done { color:#3fb950; }
+  .stage { position:relative; display:flex; align-items:center; justify-content:center;
+           padding:20px; min-height:0; flex-direction:column; gap:0; }
+  .canvasHost { flex:1; width:100%; min-height:0; display:flex; align-items:center; justify-content:center; }
+  canvas { border:1px solid var(--border); border-radius:10px; background:#0E1116; }
+  .caption { width:100%; max-width:900px; min-height:54px; padding:10px 4px; text-align:center;
+             font-size:17px; color:#e6edf3; }
+  .caption small { color:var(--muted); display:block; font-size:12px; }
+  video { max-width:100%; max-height:100%; border:1px solid var(--border); border-radius:10px; background:#000; }
+  .placeholder { color:var(--muted); text-align:center; }
+  details { font-size:12px; color:var(--muted); }
+  pre { background:var(--panel); padding:10px; border-radius:6px; overflow:auto; max-height:200px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <b>Manim Animator</b><span id="subtitle">Live teaching board — text in, lesson out</span>
+  <div class="tabs">
+    <button id="tabLive" class="active">Live Board</button>
+    <button id="tabVideo">Video</button>
+  </div>
+</header>
+<main>
+  <div class="controls">
+    <label for="text">What should the teacher explain?</label>
+    <textarea id="text" placeholder="e.g. why the sky is blue / the Pythagorean theorem / how photosynthesis works">why does the sun rise and set</textarea>
+    <button id="go" class="primary">Teach it</button>
+    <label class="toggle"><input type="checkbox" id="voice" checked /> Speak narration (browser voice)</label>
+    <div class="status" id="status"></div>
+    <div id="lessonPlan" hidden>
+      <div style="font-weight:600; margin-bottom:4px" id="lessonTitle"></div>
+      <ol class="segments" id="segments"></ol>
+    </div>
+    <details id="irBox" hidden><summary>Scene IR</summary><pre id="ir"></pre></details>
+  </div>
+
+  <!-- Live board -->
+  <div class="stage" id="liveStage">
+    <div class="canvasHost"><canvas id="board"></canvas></div>
+    <div class="caption" id="caption"><small>narration appears here</small></div>
+  </div>
+
+  <!-- Video mode (Phase 1) -->
+  <div class="stage" id="videoStage" hidden>
+    <div class="placeholder" id="placeholder">Your rendered animation will play here.</div>
+    <video id="video" controls autoplay hidden></video>
+  </div>
+</main>
+
+<script src="/board/assets.js"></script>
+<script src="/board/board.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const status = $("status"), caption = $("caption"), segList = $("segments");
+let mode = "live";
+
+/* ----- tabs ----- */
+function setMode(m) {
+  mode = m;
+  $("tabLive").classList.toggle("active", m === "live");
+  $("tabVideo").classList.toggle("active", m === "video");
+  $("liveStage").hidden = m !== "live";
+  $("videoStage").hidden = m !== "video";
+  $("go").textContent = m === "live" ? "Teach it" : "Animate";
+  $("subtitle").textContent = m === "live"
+    ? "Live teaching board — text in, lesson out"
+    : "Text → Manim → mp4";
+}
+$("tabLive").onclick = () => setMode("live");
+$("tabVideo").onclick = () => setMode("video");
+
+/* ----- narration via the browser's local TTS (free, offline) ----- */
+function speak(text) {
+  if (!$("voice").checked || !text || !window.speechSynthesis) return Promise.resolve();
+  return new Promise(resolve => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.02;
+    u.onend = u.onerror = () => resolve();
+    speechSynthesis.speak(u);
+  });
+}
+
+/* ----- live board ----- */
+/* Narration can arrive seconds before its segment's drawing instructions
+ * (the backend streams it out of the token stream early). If the board is
+ * idle, start speaking immediately; remember the promise so the segment
+ * doesn't re-speak when its drawing arrives. */
+const earlySpeech = new Map();   // segment index -> in-flight speech promise
+
+const player = new BoardPlayer($("board"), {
+  speak(seg) {
+    return earlySpeech.get(seg.index) ?? speak(seg.narration || "");
+  },
+  onSegment(seg) {
+    caption.innerHTML = "";
+    caption.textContent = seg.narration || "";
+    [...segList.children].forEach((li, i) => {
+      li.classList.toggle("playing", i === seg.index);
+      li.classList.toggle("done", i < seg.index);
+    });
+  },
+  onIdle() {
+    [...segList.children].forEach(li => { li.classList.remove("playing"); li.classList.add("done"); });
+  },
+});
+
+let ws = null;
+function teachLive(text) {
+  player.reset();
+  speechSynthesis?.cancel();
+  earlySpeech.clear();
+  segList.innerHTML = ""; $("lessonPlan").hidden = true;
+  caption.innerHTML = "<small>planning the lesson…</small>";
+  status.textContent = "Connecting…";
+
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/lesson`);
+  ws.onopen = () => { ws.send(JSON.stringify({ text })); status.textContent = "Planning lesson…"; };
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "status") {
+      status.textContent = msg.status + "…" + (msg.t ? ` (${msg.t}s)` : "");
+    } else if (msg.type === "narration") {
+      // Voice arrives before the drawing: if the board is just waiting,
+      // start talking now and let the drawing catch up.
+      if (!player.playing && !earlySpeech.has(msg.index)) {
+        caption.textContent = msg.text;
+        earlySpeech.set(msg.index, speak(msg.text));
+      }
+    } else if (msg.type === "lesson") {
+      $("lessonTitle").textContent = msg.title + (msg.model ? "" : "  (mock)");
+      segList.innerHTML = "";
+      for (const s of msg.segments) {
+        const li = document.createElement("li");
+        li.textContent = s.title;
+        segList.appendChild(li);
+      }
+      $("lessonPlan").hidden = false;
+    } else if (msg.type === "segment") {
+      player.enqueue(msg);
+    } else if (msg.type === "done") {
+      status.textContent = "Lesson planned — playing through.";
+      $("go").disabled = false;
+    } else if (msg.type === "error") {
+      status.textContent = "Error — see console";
+      console.error(msg.error);
+      $("go").disabled = false;
+    }
+  };
+  ws.onerror = () => { status.textContent = "Connection error"; $("go").disabled = false; };
+}
+
+/* ----- video mode (Phase 1, unchanged flow) ----- */
+async function animateVideo(text) {
+  const video = $("video"), placeholder = $("placeholder"), irBox = $("irBox"), irPre = $("ir");
+  video.hidden = true; placeholder.hidden = false; irBox.hidden = true;
+  status.textContent = "Submitting…";
+  const { job_id } = await (await fetch("/api/animate", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  })).json();
+  const poll = setInterval(async () => {
+    const job = await (await fetch(`/api/jobs/${job_id}`)).json();
+    status.textContent = `Status: ${job.status}`;
+    if (job.scene) { irPre.textContent = JSON.stringify(job.scene, null, 2); irBox.hidden = false; }
+    if (job.status === "done") {
+      clearInterval(poll); $("go").disabled = false;
+      placeholder.hidden = true; video.src = job.video_url + "?t=" + Date.now();
+      video.hidden = false;
+    } else if (job.status === "error") {
+      clearInterval(poll); $("go").disabled = false;
+      status.textContent = "Error — see console"; console.error(job.error);
+    }
+  }, 800);
+}
+
+$("go").onclick = () => {
+  const text = $("text").value.trim();
+  if (!text) return;
+  $("go").disabled = true;
+  if (mode === "live") teachLive(text); else animateVideo(text);
+};
+</script>
+</body>
+</html>

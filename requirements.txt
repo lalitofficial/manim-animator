@@ -1,0 +1,4 @@
+manim>=0.18
+fastapi[standard]>=0.115
+uvicorn>=0.30
+# Planner talks to Ollama over its local HTTP API using the stdlib — no extra dep.
