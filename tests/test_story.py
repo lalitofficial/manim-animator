@@ -102,6 +102,24 @@ def test_subject_extracts_a_drawable_hero_not_the_raw_phrase():
     assert done["summary"]["placeholders"] == 0  # the volcano draws, it isn't a labeled box
 
 
+def test_parse_beats_hardening_and_connector_kind():
+    # valid-but-non-beats JSON must NOT KeyError (the public POST /api/engine/animate path)
+    assert story.parse_beats({"title": "x"}) == []
+    assert story.parse_beats({}) == []
+    # a connect beat's connector_kind is 'arrow', not the literal beat kind 'connect'
+    bs = story.parse_beats(
+        {
+            "beats": [
+                {"kind": "show", "entity": "a"},
+                {"kind": "show", "entity": "b"},
+                {"kind": "connect", "src": "a", "dst": "b", "label": "x"},
+            ]
+        }
+    )
+    conn = next(b for b in bs if b.kind == "connect")
+    assert conn.connector_kind == "arrow"
+
+
 def test_story_template_plan_is_an_emotional_arc():
     """Story mode is a real arc, not N flat scenes: curiosity builds to tension, then
     releases into joy — and each scene carries a director's purpose."""

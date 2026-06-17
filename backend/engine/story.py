@@ -239,7 +239,14 @@ def _plan_prompt(spec: DirectorSpec, vocab: str) -> str:
 # the offline board honors policy (depth/density/audience/tone/scene_count).
 # Real per-topic content still needs an LLM.
 # --------------------------------------------------------------------------- #
-_PARTS = ("What it is", "Why it matters", "An example", "A key detail", "Another angle")
+_PARTS = (
+    "What it is",
+    "Why it matters",
+    "An example",
+    "A key detail",
+    "Another angle",
+    "The big picture",
+)
 
 # Words that are never the drawable subject of a topic (articles, qualifiers, abstractions).
 _NON_SUBJECT = frozenset(
@@ -376,7 +383,7 @@ def _draw_plan(spec: DirectorSpec, P):
         P.Entity(
             "title", "text", "text", appearance={"text": spec.topic, "font": 0.6}, place=at("top")
         ),
-        P.Entity("main", _subject(spec.topic), role="hero", place=at("center")),
+        P.Entity("main", _subject(spec.topic, spec.style), role="hero", place=at("center")),
     ]
     shots = [
         P.Shot(
@@ -446,7 +453,7 @@ def _story_plan(spec: DirectorSpec, P):
                 appearance={"text": f"Scene {i + 1} · {label}", "font": 0.5},
                 place=at("top"),
             ),
-            P.Entity(f"o{i}", _subject(spec.topic), role="hero", place=at("center")),
+            P.Entity(f"o{i}", _subject(spec.topic, spec.style), role="hero", place=at("center")),
         ]
         shots = [
             P.Shot(
@@ -517,7 +524,7 @@ def _learn(spec: DirectorSpec) -> list[Beat]:
 
 
 def _story(spec: DirectorSpec) -> list[Beat]:
-    labels = ["Setup", "Turning point", "Resolution", "Aftermath", "Reflection"]
+    labels = [arc[0] for arc in _STORY_ARC]  # share the arc's labels (single source)
     n = max(2, min(spec.scene_count, len(labels)))
     beats: list[Beat] = []
     for i in range(n):
@@ -527,7 +534,7 @@ def _story(spec: DirectorSpec) -> list[Beat]:
         beats += [
             say(f"Scene {i + 1}: {label.lower()} of {spec.topic}."),
             show(f"t{i}", "text", at("top"), text=f"Scene {i + 1} · {label}", font=0.5),
-            show(f"o{i}", spec.topic, at("center"), size=2.4),
+            show(f"o{i}", _subject(spec.topic, spec.style), at("center"), size=2.4),
             say(f"{label}."),
         ]
     return beats
@@ -537,7 +544,7 @@ def _draw(spec: DirectorSpec) -> list[Beat]:
     return [
         say(_intro(spec)),
         _title(spec.topic),
-        show("main", spec.topic, at("center"), size=3.2),
+        show("main", _subject(spec.topic, spec.style), at("center"), size=3.2),
         say(f"This is {spec.topic}."),
     ]
 
@@ -675,7 +682,7 @@ def sanitize_beats(
 
 
 def parse_beats(data: dict | list) -> list[Beat]:
-    arr = data["beats"] if isinstance(data, dict) else data
+    arr = data.get("beats", []) if isinstance(data, dict) else data
     if not isinstance(arr, list):
         return []
     out: list[Beat] = []
@@ -694,8 +701,8 @@ def parse_beats(data: dict | list) -> list[Beat]:
             )
         elif kind == "connect":
             src, dst = b.get("src") or b.get("entity"), b.get("dst") or b.get("target")
-            if src and dst:
-                out.append(connect(src, dst, b.get("kind", "arrow"), b.get("label")))
+            if src and dst:  # b["kind"] is the beat kind ("connect"), NOT a connector type
+                out.append(connect(src, dst, "arrow", b.get("label")))
         elif kind == "say" and b.get("text"):
             out.append(say(b["text"]))
         elif kind == "clear":
