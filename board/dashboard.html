@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Engine · Test & Check Dashboard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #0d1117;
+        color: #e6edf3;
+        font-family: -apple-system, system-ui, sans-serif;
+        padding: 24px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        max-width: 1200px;
+        margin: 0 auto 20px;
+      }
+      header h1 {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 0;
+        letter-spacing: 0.04em;
+      }
+      header .spacer {
+        flex: 1;
+      }
+      button {
+        background: #21262d;
+        border: 1px solid #30363d;
+        color: #e6edf3;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #238636;
+        border-color: #238636;
+        color: #fff;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .grid {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .card {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .card.wide {
+        grid-column: 1 / -1;
+      }
+      .card h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #8b949e;
+        margin: 0 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+      .pill.pass {
+        background: #1f6f3f;
+        color: #d2f5dd;
+      }
+      .pill.fail {
+        background: #8b2a2a;
+        color: #ffd7d7;
+      }
+      .pill.muted {
+        background: #30363d;
+        color: #c9d1d9;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid #21262d;
+      }
+      th {
+        color: #8b949e;
+        font-weight: 600;
+      }
+      td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 4px 14px;
+        font-size: 14px;
+      }
+      .kv .k {
+        color: #8b949e;
+      }
+      .big {
+        font-size: 34px;
+        font-weight: 700;
+      }
+      .sub {
+        color: #8b949e;
+        font-size: 13px;
+      }
+      .explorer-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .explorer-row input {
+        flex: 1;
+        background: #0d1117;
+        border: 1px solid #30363d;
+        color: #e6edf3;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 14px;
+      }
+      #lesson-svg svg {
+        width: 100%;
+        height: auto;
+        border: 1px solid #21262d;
+        border-radius: 8px;
+        background: #0d1117;
+      }
+      ul.narration {
+        margin: 8px 0 0;
+        padding-left: 18px;
+        color: #c9d1d9;
+        font-size: 14px;
+      }
+      pre {
+        background: #0d1117;
+        border: 1px solid #21262d;
+        border-radius: 8px;
+        padding: 10px;
+        overflow: auto;
+        max-height: 220px;
+        font-size: 12px;
+        color: #c9d1d9;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ENGINE · TEST &amp; CHECK</h1>
+      <span id="overall" class="pill muted">…</span>
+      <div class="spacer"></div>
+      <button id="rerun" class="primary">Re-run all checks</button>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Health</h2>
+        <div id="health" class="kv"></div>
+      </div>
+
+      <div class="card">
+        <h2>Engine speed</h2>
+        <div id="speed"></div>
+      </div>
+
+      <div class="card wide">
+        <h2>Positioning gate <span id="pos-pill" class="pill muted">…</span></h2>
+        <div id="positioning"></div>
+      </div>
+
+      <div class="card wide">
+        <h2>Drawing gate <span id="draw-pill" class="pill muted">…</span></h2>
+        <div id="drawing"></div>
+      </div>
+
+      <div class="card wide">
+        <h2>Lesson explorer</h2>
+        <div class="explorer-row">
+          <input id="topic" value="the water cycle" placeholder="Type a topic…" />
+          <button id="render">Render</button>
+        </div>
+        <div id="lesson-stats" class="sub"></div>
+        <div id="lesson-svg"></div>
+        <ul id="lesson-narration" class="narration"></ul>
+      </div>
+
+      <div class="card wide">
+        <h2>Unit test suite <span id="suite-pill" class="pill muted">not run</span></h2>
+        <button id="run-suite">Run pytest</button>
+        <span id="suite-summary" class="sub" style="margin-left: 10px"></span>
+        <pre id="suite-tail" hidden></pre>
+      </div>
+    </div>
+
+    <script src="/board/dashboard.js"></script>
+  </body>
+</html>

@@ -16,6 +16,10 @@
   .tabs button { background:transparent; color:var(--muted); border:1px solid var(--border);
                  border-radius:8px; padding:6px 12px; font-weight:600; cursor:pointer; }
   .tabs button.active { color:#04101f; background:var(--accent); border-color:var(--accent); }
+  .modes { display:flex; gap:6px; flex-wrap:wrap; }
+  .modes button { background:var(--panel); color:var(--muted); border:1px solid var(--border);
+                  border-radius:14px; padding:5px 12px; font-size:13px; font-weight:600; cursor:pointer; }
+  .modes button.active { color:#04101f; background:#3fb950; border-color:#3fb950; }
   main { flex:1; display:grid; grid-template-columns:340px 1fr; min-height:0; }
   .controls { padding:18px; border-right:1px solid var(--border); display:flex; flex-direction:column; gap:12px; overflow:auto; }
   textarea { width:100%; height:120px; resize:vertical; background:var(--panel);
@@ -55,6 +59,7 @@
   <div class="controls">
     <label for="text">What should the teacher explain?</label>
     <textarea id="text" placeholder="e.g. why the sky is blue / the Pythagorean theorem / how photosynthesis works">why does the sun rise and set</textarea>
+    <div class="modes" id="modes" title="Session mode"></div>
     <button id="go" class="primary">Teach it</button>
     <label class="toggle"><input type="checkbox" id="voice" checked /> Speak narration (browser voice)</label>
     <div class="status" id="status"></div>
@@ -92,13 +97,33 @@ function setMode(m) {
   $("tabVideo").classList.toggle("active", m === "video");
   $("liveStage").hidden = m !== "live";
   $("videoStage").hidden = m !== "video";
-  $("go").textContent = m === "live" ? "Teach it" : "Animate";
+  $("go").textContent = m === "live" ? goLabel() : "Animate";
   $("subtitle").textContent = m === "live"
-    ? "Live teaching board — text in, lesson out"
+    ? "Live board — text in, performance out"
     : "Text → Manim → mp4";
 }
 $("tabLive").onclick = () => setMode("live");
 $("tabVideo").onclick = () => setMode("video");
+
+/* ----- session modes (the framework registry, served by the backend) ----- */
+let sessionMode = "learn";
+const GO_LABELS = { learn: "Teach it", draw: "Draw it", story: "Tell it", explain: "Explain it" };
+const goLabel = () => GO_LABELS[sessionMode] || "Go";
+fetch("/api/modes").then(r => r.json()).then(({ modes }) => {
+  const host = $("modes");
+  for (const m of modes) {
+    const b = document.createElement("button");
+    b.textContent = m.label;
+    b.title = m.blurb;
+    b.classList.toggle("active", m.name === sessionMode);
+    b.onclick = () => {
+      sessionMode = m.name;
+      [...host.children].forEach(x => x.classList.toggle("active", x === b));
+      if (mode === "live") $("go").textContent = goLabel();
+    };
+    host.appendChild(b);
+  }
+}).catch(() => {});
 
 /* ----- narration via the browser's local TTS (free, offline) ----- */
 function speak(text) {
@@ -112,22 +137,13 @@ function speak(text) {
 }
 
 /* ----- live board ----- */
-/* Narration can arrive seconds before its segment's drawing instructions
- * (the backend streams it out of the token stream early). If the board is
- * idle, start speaking immediately; remember the promise so the segment
- * doesn't re-speak when its drawing arrives. */
-const earlySpeech = new Map();   // segment index -> in-flight speech promise
-
 const player = new BoardPlayer($("board"), {
-  speak(seg) {
-    return earlySpeech.get(seg.index) ?? speak(seg.narration || "");
-  },
-  onSegment(seg) {
-    caption.innerHTML = "";
-    caption.textContent = seg.narration || "";
+  speak,
+  onSay(text) { caption.textContent = text; },
+  onSegment(evt) {
     [...segList.children].forEach((li, i) => {
-      li.classList.toggle("playing", i === seg.index);
-      li.classList.toggle("done", i < seg.index);
+      li.classList.toggle("playing", i === evt.index);
+      li.classList.toggle("done", i < evt.index);
     });
   },
   onIdle() {
@@ -135,28 +151,25 @@ const player = new BoardPlayer($("board"), {
   },
 });
 
+/* Idle cover: while the lesson is still streaming but the board has played
+ * out its queue, gesture at recent work instead of freezing. */
+let lessonActive = false;
+setInterval(() => { if (lessonActive && !player.playing) player.pulseRecent(); }, 2500);
+
 let ws = null;
 function teachLive(text) {
   player.reset();
   speechSynthesis?.cancel();
-  earlySpeech.clear();
   segList.innerHTML = ""; $("lessonPlan").hidden = true;
   caption.innerHTML = "<small>planning the lesson…</small>";
   status.textContent = "Connecting…";
 
   ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/lesson`);
-  ws.onopen = () => { ws.send(JSON.stringify({ text })); status.textContent = "Planning lesson…"; };
+  ws.onopen = () => { ws.send(JSON.stringify({ text, mode: sessionMode })); status.textContent = "Planning…"; lessonActive = true; };
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.type === "status") {
       status.textContent = msg.status + "…" + (msg.t ? ` (${msg.t}s)` : "");
-    } else if (msg.type === "narration") {
-      // Voice arrives before the drawing: if the board is just waiting,
-      // start talking now and let the drawing catch up.
-      if (!player.playing && !earlySpeech.has(msg.index)) {
-        caption.textContent = msg.text;
-        earlySpeech.set(msg.index, speak(msg.text));
-      }
     } else if (msg.type === "lesson") {
       $("lessonTitle").textContent = msg.title + (msg.model ? "" : "  (mock)");
       segList.innerHTML = "";
@@ -166,18 +179,22 @@ function teachLive(text) {
         segList.appendChild(li);
       }
       $("lessonPlan").hidden = false;
-    } else if (msg.type === "segment") {
-      player.enqueue(msg);
+    } else if (msg.type === "action" || msg.type === "segment_start") {
+      // Same queue for actions and segment markers: the sidebar highlight
+      // moves when playback reaches the segment, not when planning does.
+      player.enqueueAction(msg);
     } else if (msg.type === "done") {
       status.textContent = "Lesson planned — playing through.";
+      lessonActive = false;
       $("go").disabled = false;
     } else if (msg.type === "error") {
       status.textContent = "Error — see console";
       console.error(msg.error);
+      lessonActive = false;
       $("go").disabled = false;
     }
   };
-  ws.onerror = () => { status.textContent = "Connection error"; $("go").disabled = false; };
+  ws.onerror = () => { status.textContent = "Connection error"; lessonActive = false; $("go").disabled = false; };
 }
 
 /* ----- video mode (Phase 1, unchanged flow) ----- */
