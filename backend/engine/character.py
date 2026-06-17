@@ -472,8 +472,20 @@ def _poly(points, fill: str | None, line: str, closed: bool = True) -> Stroke:
 
 
 # Accessories — each returns Strokes in the rig's local box. `pal` carries the palette.
-def _acc_glasses(pal):
+def _profile_side(turn: float) -> float | None:
+    """In a strict side profile (|turn|>0.82) the face shows ONE eye — return its side
+    (±1) so a lens-pair accessory can drop the far lens; else None (draw both)."""
+    return (1.0 if turn > 0 else -1.0) if abs(turn) > 0.82 else None
+
+
+def _acc_glasses(pal, turn=0.0):
     ink, ey = "#2b2b2b", _HEAD_C[1] + 0.05
+    side = _profile_side(turn)
+    if side is not None:  # profile: one lens on the visible eye + a temple arm
+        return [
+            _ring(0.085, ink, (side * 0.09, ey)),
+            Stroke(((0.0, ey), (-side * 0.2, ey + 0.02)), closed=False, color=ink),
+        ]
     return [
         _ring(0.085, ink, (-0.13, ey)),
         _ring(0.085, ink, (0.13, ey)),
@@ -481,8 +493,14 @@ def _acc_glasses(pal):
     ]
 
 
-def _acc_goggles(pal):
+def _acc_goggles(pal, turn=0.0):
     ink, ey = "#3a4a5a", _HEAD_C[1] + 0.04
+    side = _profile_side(turn)
+    if side is not None:
+        return [
+            _disc(0.12, "#bfe3ff", ink, (side * 0.1, ey)),
+            Stroke(((0.0, ey + 0.05), (-side * 0.24, ey + 0.05)), closed=False, color=ink),
+        ]
     return [
         _disc(0.12, "#bfe3ff", ink, (-0.13, ey)),
         _disc(0.12, "#bfe3ff", ink, (0.13, ey)),
@@ -671,8 +689,14 @@ def _acc_witch_hat(pal):
     ]
 
 
-def _acc_sunglasses(pal):
+def _acc_sunglasses(pal, turn=0.0):
     dk, ey = "#1f2430", _HEAD_C[1] + 0.05
+    side = _profile_side(turn)
+    if side is not None:
+        return [
+            _disc(0.09, dk, dk, (side * 0.09, ey)),
+            Stroke(((0.0, ey), (-side * 0.2, ey + 0.02)), closed=False, color=dk),
+        ]
     return [
         _disc(0.09, dk, dk, (-0.13, ey)),
         _disc(0.09, dk, dk, (0.13, ey)),
@@ -965,9 +989,10 @@ _CASTING: tuple[tuple[tuple[str, ...], str], ...] = (
     (("cook", "recipe", "kitchen", "bak", "chef", "cuisine", "meal"), "chef"),
     (("paint", "drawing", "sketch", "artist", "canvas", "museum"), "artist"),
     (
-        ("king", "queen", "castle", "kingdom", "crown", "royal", "throne", "palace", "knight"),
-        "king",
-    ),
+        ("knight", "armor", "sword", "medieval", "joust"),
+        "knight",
+    ),  # before king (a knight ≠ a king)
+    (("king", "queen", "castle", "kingdom", "crown", "royal", "throne", "palace"), "king"),
     (("magic", "wizard", "spell", "potion", "witch", "sorcer", "enchant", "dragon"), "wizard"),
     (("ocean", "pirate", "ship", "sail", "treasure"), "pirate"),
     (("police", "crime", "detective"), "police"),
@@ -1022,14 +1047,20 @@ def _role_palette(role: str | None, theme: str | None) -> dict[str, str]:
     return pal
 
 
-def _accessories(role: str | None, layer: str, pal: dict[str, str]) -> list[Stroke]:
+def _accessories(
+    role: str | None, layer: str, pal: dict[str, str], turn: float = 0.0
+) -> list[Stroke]:
     spec = ROLES.get((role or "").strip().lower())
     out: list[Stroke] = []
     for name in (spec or {}).get("acc", ()):
         entry = _ACCESSORIES.get(name)
         if entry and entry[0] == layer:
-            out += entry[1](pal)
+            # lens pairs (glasses/goggles/sunglasses) drop their far lens in a side profile
+            out += entry[1](pal, turn) if name in _TURN_AWARE_ACC else entry[1](pal)
     return out
+
+
+_TURN_AWARE_ACC = frozenset({"glasses", "goggles", "sunglasses"})
 
 
 _NECK = (0.0, _HEAD_C[1] - _HEAD_R * 0.75)  # head pivots here when it tilts (nod/look)
@@ -1089,9 +1120,9 @@ def build(
     ]
     head += _hair(pal)
     head += _face(expression, pal, turn=turn, blink=bool(resolved.get("blink")))
-    acc = _accessories(character, "head", pal)  # glasses, hat, beard …
-    if turn:  # head accessories follow the turn (glasses track the eyes; hats shift a touch)
-        acc = [_translate(s, (turn * 0.07, 0.0)) for s in acc]
+    acc = _accessories(character, "head", pal, turn)  # glasses, hat, beard …
+    if turn and abs(turn) <= 0.82:  # non-profile: accessories follow the eye shift; a profile
+        acc = [_translate(s, (turn * 0.07, 0.0)) for s in acc]  # one self-positions (no shift)
     head += acc
     tilt = float(resolved.get("head", 0.0))
     if tilt:

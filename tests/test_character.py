@@ -70,6 +70,24 @@ def test_new_clips_and_head_tilt():
     assert character.interpolate("idle", "agree", 0.5).get("head", 0.0) < 0  # bowed mid-nod
 
 
+def test_profile_drops_the_far_lens():
+    # a glasses/goggles role shows TWO lenses front-on but ONE in a side profile
+    def lenses(strokes):
+        return sum(1 for s in strokes if s.fill == "#bfe3ff")  # goggle lens fill
+
+    assert lenses(character.build("idle", character="scientist")) == 2
+    assert lenses(character.build("side_right", character="scientist")) == 1
+    assert character.cast_for("a brave knight in armor") == "knight"  # knight ≠ king
+
+
+def test_alive_idle_loop_blinks():
+    # §C6 'breathe when idle': the looping clip blinks and sways, and it loops
+    frames = character.perform("alive")
+    assert character.loops("alive")
+    assert any(f.get("blink") for f in frames)  # at least one closed-eye frame
+    assert any(abs(f.get("turn", 0)) > 0.05 for f in frames)  # a weight-shift sway
+
+
 def test_posed_overrides_head_for_look_at():
     # posed() overrides the head turn so the rig can LOOK toward a target
     assert character.posed("point", turn=0.7)["turn"] == 0.7
