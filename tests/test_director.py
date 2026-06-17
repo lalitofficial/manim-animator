@@ -22,6 +22,17 @@ def test_natural_language_cues_are_read():
     assert deep.depth == "deep" and deep.audience == "expert" and deep.tone == "formal"
 
 
+def test_topic_words_do_not_reclassify_the_lesson():
+    # cues are read from an explicit REQUEST only — never the topic itself
+    assert direct("deep sea creatures").depth == "normal"  # not 'deep'
+    assert direct("a simple machine").audience == "general"  # not 'child'
+    assert direct("a brief history of time").depth == "normal"  # not 'brief'
+    # the child cue implies the cartoon style, matching the audience=child dropdown
+    s = direct("photosynthesis", request="explain like i'm 5")
+    assert s.audience == "child" and s.style == "cartoon"
+    assert direct("x", audience="child").style == "cartoon"  # the two paths agree
+
+
 def test_explicit_controls_win_over_cues():
     s = direct("x", mode="story", request="quick and simple", audience="expert")
     assert s.mode == "story"  # explicit mode beats inference

@@ -97,7 +97,7 @@ def _heuristic(request: str, spec: DirectorSpec) -> DirectorSpec:
     if has("deep", "detailed", "in depth", "thorough", "comprehensive"):
         ch["depth"] = "deep"
     if has("like i'm 5", "like im 5", "eli5", " kid", "child", "beginner", "simple"):
-        ch.update(audience="child", tone="playful", energy="lively")
+        ch.update(audience="child", tone="playful", energy="lively", style="cartoon")
     if has("expert", "phd", "advanced", "technical", "rigorous"):
         ch.update(audience="expert", tone="formal")
     if has("fun", "playful", "casual", "chill"):
@@ -132,7 +132,8 @@ def direct(
     cues in `request` -> explicit `mode` / field overrides."""
     spec = DirectorSpec(topic=topic)
     spec = replace(spec, **_audience_profile(overrides.get("audience")))
-    spec = _heuristic(request or topic, spec)
+    if request:  # only scan an EXPLICIT request for cues — never the topic itself
+        spec = _heuristic(request, spec)  # ('deep sea'/'simple machine' must not reclassify)
     if mode:
         spec = replace(spec, mode=mode)
     valid = {k: v for k, v in overrides.items() if v is not None and hasattr(spec, k)}
