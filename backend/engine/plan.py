@@ -95,7 +95,7 @@ _EMOTION_CLIP = {
     "curious": "explain",
     "wonder": "surprised",
     "calm": "present",
-    "tense": "idle",
+    "tense": "alive",  # even a still, tense host breathes (idle sway + blink), never frozen
 }
 
 

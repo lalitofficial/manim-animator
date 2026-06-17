@@ -190,7 +190,8 @@ def test_joyful_host_carries_a_motion_clip():
         )
     )
     chost = next(e for e in calm if e["type"] == "draw" and e["op"]["id"] == "guide")
-    assert "frames" not in chost["op"]  # tense = still, no gesture
+    # tense holds no big gesture, but still BREATHES — a looping idle-life (sway + blink)
+    assert chost["op"].get("loop") is True and chost["op"].get("frames")
 
 
 def test_per_scene_casting_changes_the_host():

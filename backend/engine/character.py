@@ -187,6 +187,28 @@ _HAND_POSES: dict[str, dict] = {
         "r_leg": [284, _THIGH, 308, _SHIN],
         "head": -5,
     },
+    # idle LIFE — eyes shut (blink) + a gentle weight shift so a held pose isn't frozen
+    "blink": {
+        "l_arm": [250, _UP, 250, _FORE],
+        "r_arm": [290, _UP, 290, _FORE],
+        "l_leg": [268, _THIGH, 268, _SHIN],
+        "r_leg": [272, _THIGH, 272, _SHIN],
+        "blink": True,
+    },
+    "sway_l": {
+        "l_arm": [250, _UP, 250, _FORE],
+        "r_arm": [290, _UP, 290, _FORE],
+        "l_leg": [268, _THIGH, 268, _SHIN],
+        "r_leg": [272, _THIGH, 272, _SHIN],
+        "turn": -0.14,
+    },
+    "sway_r": {
+        "l_arm": [250, _UP, 250, _FORE],
+        "r_arm": [290, _UP, 290, _FORE],
+        "l_leg": [268, _THIGH, 268, _SHIN],
+        "r_leg": [272, _THIGH, 272, _SHIN],
+        "turn": 0.14,
+    },
 }
 POSE_LIBRARY: dict[str, dict] = {
     **_HAND_POSES,
@@ -1102,6 +1124,10 @@ def interpolate(a, b, t: float) -> dict:
     for k in ("head", "turn", "facing"):  # head tilt + look-turn + body-facing all interpolate
         v0, v1 = pa.get(k, 0.0), pb.get(k, 0.0)
         out[k] = v0 + (v1 - v0) * t
+    # blink is discrete — the eyes stay closed only in a short window AT a blink keyframe,
+    # so a blink reads as a quick flick rather than a slow fade.
+    if (pa.get("blink") and t < 0.3) or (pb.get("blink") and t > 0.7):
+        out["blink"] = True
     return out
 
 
@@ -1135,6 +1161,11 @@ CLIPS: dict[str, dict] = {
     "side_left": {"keys": ["idle", "side_left"], "loop": False, "hold": True},
     "side_right": {"keys": ["idle", "side_right"], "loop": False, "hold": True},
     "walk_side": {"keys": ["side_right", "walk_side", "side_right"], "loop": True},
+    # idle LIFE — a slow loop: rest, sway, blink, rest — so a held character breathes
+    "alive": {
+        "keys": ["idle", "sway_l", "idle", "idle", "blink", "idle", "sway_r", "idle"],
+        "loop": True,
+    },
     "idle": {"keys": ["idle"], "loop": True},
 }
 
