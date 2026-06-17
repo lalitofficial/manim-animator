@@ -204,25 +204,37 @@ async function drawOp(svg, defs, op, toPx, pacing, cartoon, signal) {
 }
 
 // Flip a group's strokes through pre-rendered pose frames — real limb motion (the rig
-// ACTS). Frame i, stroke j updates element j's points; non-looping clips hold the last frame.
+// ACTS). Frame i, stroke j updates element j's points. A one-shot gesture then chains into
+// the looping idle-life (op.idle) so the character keeps breathing instead of freezing.
 function playClip(els, op, toPx, signal, startDelay) {
-  const framePts = op.frames.map((fr) =>
-    fr.map((s) => {
-      const pts = s.points.map(([x, y]) => toPx(x, y).join(','));
-      if (s.closed && pts.length) pts.push(pts[0]);
-      return pts.join(' ');
-    }),
-  );
+  const toFrames = (frames) =>
+    frames.map((fr) =>
+      fr.map((s) => {
+        const pts = s.points.map(([x, y]) => toPx(x, y).join(','));
+        if (s.closed && pts.length) pts.push(pts[0]);
+        return pts.join(' ');
+      }),
+    );
+  const main = toFrames(op.frames);
+  const idle = op.idle ? toFrames(op.idle) : null;
   const fps = op.fps || 14;
+  let seq = main;
+  let looping = !!op.loop;
   let fi = 0;
   const tick = () => {
     if (signal && signal.aborted) return;
-    const fr = framePts[fi];
-    for (let j = 0; j < els.length; j++) if (fr[j] !== undefined) els[j].el.setAttribute('points', fr[j]);
+    if (!els[0] || !els[0].el.isConnected) return; // group removed (re-pose / new lesson) — stop
+    const fr = seq[fi];
+    for (let j = 0; j < els.length; j++)
+      if (fr[j] !== undefined) els[j].el.setAttribute('points', fr[j]);
     fi += 1;
-    if (fi >= framePts.length) {
-      if (!op.loop) return; // hold the final pose
-      fi = 0;
+    if (fi >= seq.length) {
+      if (looping) fi = 0;
+      else if (idle && seq === main) {
+        seq = idle;
+        fi = 0;
+        looping = true;
+      } else return; // hold the final pose
     }
     setTimeout(() => requestAnimationFrame(tick), 1000 / fps);
   };

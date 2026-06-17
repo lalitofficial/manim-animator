@@ -331,7 +331,49 @@ async function drawOp(op) {
     group.style.animation = `amb-${op.ambient} ${op.ambient === 'float' ? 4 : 2.6}s ease-in-out infinite`;
   }
 
+  // Character motion: flip through server-rendered pose frames (a mined gesture clip),
+  // then chain into the looping idle-life so the character keeps breathing (not frozen).
+  if (style === 'cartoon' && op.frames && op.frames.length > 1) {
+    playClip(reveals, op, maxMs);
+  }
+
   await sleep(maxMs);
+}
+
+// Flip a group's strokes through pre-rendered pose frames (the rig ACTS). A one-shot
+// gesture chains into the looping idle-life (op.idle). Stops when the group leaves the DOM.
+function playClip(reveals, op, startDelay) {
+  const toFrames = (frames) =>
+    frames.map((fr) =>
+      fr.map((s) => {
+        const pts = s.points.map(([x, y]) => toPx(x, y).join(','));
+        if (s.closed && pts.length) pts.push(pts[0]);
+        return pts.join(' ');
+      }),
+    );
+  const main = toFrames(op.frames);
+  const idle = op.idle ? toFrames(op.idle) : null;
+  const fps = op.fps || 14;
+  let seq = main;
+  let looping = !!op.loop;
+  let fi = 0;
+  const tick = () => {
+    if (!reveals[0] || !reveals[0].el.isConnected) return; // removed (re-pose / new lesson)
+    const fr = seq[fi];
+    for (let j = 0; j < reveals.length; j++)
+      if (fr[j] !== undefined) reveals[j].el.setAttribute('points', fr[j]);
+    fi += 1;
+    if (fi >= seq.length) {
+      if (looping) fi = 0;
+      else if (idle && seq === main) {
+        seq = idle;
+        fi = 0;
+        looping = true;
+      } else return;
+    }
+    setTimeout(() => requestAnimationFrame(tick), 1000 / fps);
+  };
+  setTimeout(() => requestAnimationFrame(tick), startDelay);
 }
 
 // Smooth viewBox pan/zoom. Non-blocking — a newer move supersedes via camSeq.

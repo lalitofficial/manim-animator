@@ -413,12 +413,15 @@ def compile_plan(
                 # rendered to placed frames the board flips through. Cartoon only.
                 if cinematic and eid in chars:
                     clip = _EMOTION_CLIP.get(emotion, "wave")
-                    if clip != "idle":
-                        ev["op"]["frames"] = _host_clip_frames(
-                            tmap[eid], p, d, style, scene_name, clip
-                        )
+                    frames = _host_clip_frames(tmap[eid], p, d, style, scene_name, clip)
+                    if frames:
+                        ev["op"]["frames"] = frames
                         ev["op"]["fps"] = 14
                         ev["op"]["loop"] = character.loops(clip)
+                        if not ev["op"]["loop"]:  # after a one-shot gesture, BREATHE (idle-life
+                            ev["op"]["idle"] = _host_clip_frames(  # loop) instead of freezing
+                                tmap[eid], p, d, style, scene_name, "alive"
+                            )
                 yield ev
             if shot.say:
                 yield {"type": "say", "text": shot.say}
