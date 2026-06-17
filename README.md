@@ -16,22 +16,58 @@ Text ─► Planner (2-stage + repair) ─► Scene IR (JSON) ─► Renderer �
           └─ asset catalog injected into prompts ◄── assets.py / assets.js
 ```
 
-**Live board pipeline:** `topic → plan+first segment (one LLM call) → per-segment
-IR, streamed over /ws/lesson → board.js draws live`. Each call plans just one
-teaching beat, so it's faster and more reliable on a 7B model than one giant scene
-— and the board plays segment N while segment N+1 is still being planned.
+**Live board pipeline (v2 — action streaming):** the model emits NDJSON, ONE
+action per line (`say` / `add` / `play` / `macro` / `clear` / `end`); the server
+validates, *lays out*, and dispatches each action over `/ws/lesson` the moment
+its line closes. First-content latency drops from O(segment tokens) to O(line
+tokens ≈ 30), and per-action playback (~1–2.5 s) overlaps the generation of the
+next line, so the board stays continuously alive. See [PAPER.md](PAPER.md) for
+the formal latency model (saturation theorem, speech-credit lemma) and
+measurements.
 
-**Latency design** (local 7B models generate ~10 tok/s, so every token counts):
-- a deterministic intro segment draws the title and starts the voice in <1s,
-  no LLM involved;
-- the lesson plan and the first real segment come back in *one* round trip;
-- every call streams: the `narration` field is emitted the moment it closes in
-  the token stream, so speech starts seconds into a call, not after it;
-- the segment system prompt is byte-identical across calls (board state travels
-  in the user message), so Ollama's KV prefix cache re-evals only the ~100 new
-  tokens per segment;
-- the model is warmed at server startup and kept resident (`keep_alive=30m`),
-  and outputs are capped (`num_predict`) and budgeted (1-3 sentences, ≤4 objects).
+**Latency design** (local models generate 9–16 tok/s, so every token counts):
+- a deterministic intro (title + voice) plays in <1 s, zero LLM tokens;
+- title + 4-segment plan + the first teaching beat come back in *one* call;
+- per-line **drop-don't-repair** error handling: a bad line is skipped free;
+  re-adding an existing object becomes a "pulse" (the teacher points at it);
+  added-but-never-animated objects get auto-reveal steps; a model that ignores
+  NDJSON entirely falls back to whole-buffer parsing, then to a narration card;
+- geometry is *computed, not generated*: a layout solver (frame projection,
+  min-penetration collision separation, scored label placement) treats model
+  coordinates as hints — and `macro` lines compress label/arrow constructs 3–4×;
+- system prompts are byte-identical across calls (board state travels in the
+  user message) so Ollama's KV prefix cache re-evals only ~100 tokens per call;
+- the model is warmed at startup, kept resident (`keep_alive=30m`), outputs are
+  capped (`num_predict`), and `{"end":true}` closes the stream early;
+- the live lane prefers the fastest installed model (gemma3:4b, ~16 tok/s);
+  the offline mp4 lane keeps qwen2.5:7b. Override: `OLLAMA_LESSON_MODEL`;
+- **narration is the buffer**: speech plays ~3.5× slower than it generates,
+  so `say` tokens bank audience-time. The prompt allocates ~20% of tokens to
+  two-sentence narration; the client adds elastic playback (stretch when the
+  buffer is thin) and idle-cover pulses (bounded motionless time ≤2.5 s).
+  Measure any change with `python backend/bench_live.py "<topic>"`;
+- **drawing skill lives in the runtime, not the model**: every stroke gets
+  stable hand-drawn wobble (chalk feel); ~110 nouns resolve to *real human
+  stroke sequences* from Google QuickDraw (lazily cached, replayed stroke by
+  stroke under the pen); and six performance verbs — `dance`, `walk`, `wave`
+  (skeletal rig keyframes), `spin` (meridian-drift on globes), `orbit`,
+  `bounce` — turn one ~12-token line into seconds of kinematics.
+
+**Session modes** ([backend/modes.py](backend/modes.py)) — the same engine,
+parametrized. A mode is a `ModeSpec`: voice (system prompts), arc (plan +
+segments vs one pass), board policy (columns / fresh stage per scene / one
+canvas), and token budgets. Shipped modes:
+
+| mode | what you get |
+|---|---|
+| **Learn** | full multi-part lesson with a plan and recap (columns + wipes) |
+| **Draw** | one rich narrated illustration on the whole board |
+| **Story** | a three-scene performed story — characters walk, dance, wave |
+| **Explain** | the 30-second version: one idea, one picture, fastest path |
+
+Adding a mode is one entry in the registry — no engine changes. The UI picks
+modes via chips (served from `/api/modes`); CLI: `python lesson.py --mode draw
+"a farm in the morning"`.
 
 The IR is the spine of the whole design: the planner never writes Manim code
 (safe, no `exec`), and swapping the renderer doesn't touch the planner.
@@ -48,13 +84,16 @@ writing one factory in `assets.py`, or drop a `.svg` into `backend/assets/svg/`.
 |------|------|
 | [backend/ir.py](backend/ir.py) | Scene IR schema (Pydantic) — the contract |
 | [backend/assets.py](backend/assets.py) | Named composite asset library + SVG drop-in + catalog |
-| [backend/planner.py](backend/planner.py) | Text → IR: two-stage + repair loop (local Ollama, mock fallback) |
-| [backend/lesson.py](backend/lesson.py) | Topic → *streamed* lesson: outline → per-segment IR (the live-board planner) |
+| [backend/planner.py](backend/planner.py) | Text → IR: two-stage + repair loop (offline mp4 lane) + Ollama plumbing |
+| [backend/lesson.py](backend/lesson.py) | Topic → *streamed NDJSON action lines* (the live-board engine) |
+| [backend/actions.py](backend/actions.py) | Action protocol: line parser/assembler, layout solver, macros |
 | [backend/renderer.py](backend/renderer.py) | IR → Manim → mp4 (the only Manim-aware file) |
 | [backend/app.py](backend/app.py) | FastAPI: video jobs + `/ws/lesson` websocket stream + static board |
+| [backend/bench_live.py](backend/bench_live.py) | Latency benchmark: TTFA, cadence percentiles, perceived-idle simulation |
 | [board/index.html](board/index.html) | The board UI: Live Board tab (canvas + narration) and Video tab |
-| [board/board.js](board/board.js) | Realtime canvas renderer: IR → progressive hand-drawn reveal, step timeline |
+| [board/board.js](board/board.js) | Realtime canvas renderer: action player, progressive reveal, pen tip |
 | [board/assets.js](board/assets.js) | JS twin of assets.py: same names/aliases as display-list factories |
+| [PAPER.md](PAPER.md) | Research paper draft: latency model, layout solver, evaluation |
 
 ## Setup
 
