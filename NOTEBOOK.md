@@ -704,3 +704,18 @@ the same namespace-guard discipline as §C3's star. *Lessons:* (a) a 2D "3D turn
 cheats — feature-shift (3/4) → break-the-silhouette (profile); pick the cheapest cue that reads. (b)
 Casting belongs at COMPILE time over the SCENE, not at host-injection over the lesson — the scene is the
 unit that has a setting, so per-scene is the natural granularity and it falls out of one recast pass.
+
+**C6. Acting details — look-at-target + idle-life — and committing the branch.** Two small touches
+that buy a lot of "alive": (1) **look-at-target** — `posed(name, **overrides)` lets geometry_attrs
+carry head turn/facing/head overrides; `drawing._character` applies them, and `compile_plan`'s
+point/look sets `turn = clamp(target.x − host.x)` so the host LOOKS at what it points to (a head turn,
+not a stare). (2) **idle-life** — a held pose looked frozen, so an `alive` looping clip does a gentle
+weight-shift sway + a periodic blink; still/tense hosts play it instead of a static hold. The blink
+needed `interpolate()` to carry the discrete `blink` flag in a SHORT window near the keyframe (t<0.3 /
+t>0.7) so it reads as a flick, not a slow fade — discrete state can't lerp, so you gate it on the
+interpolation parameter. *Process note:* committed the whole accumulated cartoon branch in 10 logical
+commits (chore→build→engine→cartoon→character→director→studio→api→test→docs) + one per increment after.
+The pre-commit hooks need `uv` on PATH (`~/.local/bin`) and auto-fix EOF/format, so stage→commit→re-add
+→commit is the rhythm. *Lesson: the cheapest acting cues (look where you point, blink when idle) read
+as intention and life far out of proportion to their code — polish the SEAMS the eye lands on (face,
+gaze, stillness), not the parts it skims.*
