@@ -49,9 +49,9 @@ def quadruped(
         )
     # tail (behind body)
     if tail == "up":
-        p.append({"prim": "line", "at": [-0.52, 0.05], "to": [-0.8, 0.4], "stroke": line})
+        p.append({"prim": "line", "at": [-0.52, 0.05], "to": [-0.28, 0.35], "stroke": line})
     elif tail == "down":
-        p.append({"prim": "line", "at": [-0.52, -0.05], "to": [-0.84, -0.18], "stroke": line})
+        p.append({"prim": "line", "at": [-0.52, -0.05], "to": [-0.32, -0.13], "stroke": line})
     elif tail == "puff":
         p.append(
             {
@@ -235,8 +235,8 @@ def bird(
     )
     p.append(_eye(0.18, hy + 0.06, 0.045, line))
     # feet
-    p.append({"prim": "line", "at": [-0.1, -0.5], "to": [-0.1, -0.62], "stroke": beak})
-    p.append({"prim": "line", "at": [0.12, -0.5], "to": [0.12, -0.62], "stroke": beak})
+    p.append({"prim": "line", "at": [-0.1, -0.5], "to": [0.0, -0.12], "stroke": beak})
+    p.append({"prim": "line", "at": [0.12, -0.5], "to": [0.0, -0.12], "stroke": beak})
     return {"parts": p}
 
 
@@ -278,10 +278,10 @@ def bug(
 ) -> dict:
     """A round bug: ladybug/beetle/bee (spots), butterfly (wings)."""
     p: list[dict] = []
-    if legs:
+    if legs and not wings:  # winged bugs (butterfly/dragonfly/moth) don't show walking legs
         for x in (-0.2, 0.0, 0.2):
-            p.append({"prim": "line", "at": [x, -0.32], "to": [x - 0.18, -0.5], "stroke": line})
-            p.append({"prim": "line", "at": [x, -0.32], "to": [x + 0.18, -0.5], "stroke": line})
+            p.append({"prim": "line", "at": [x, -0.32], "to": [-0.18, -0.18], "stroke": line})
+            p.append({"prim": "line", "at": [x, -0.32], "to": [0.18, -0.18], "stroke": line})
     if wings:
         p.append(
             {
@@ -316,7 +316,7 @@ def bug(
         return {"parts": p}
     p.append({"prim": "circle", "at": [0.0, 0.0], "r": 0.46, "fill": body, "stroke": line})
     if spots:
-        p.append({"prim": "line", "at": [0.0, 0.46], "to": [0.0, -0.46], "stroke": line})
+        p.append({"prim": "line", "at": [0.0, 0.46], "to": [0.0, -0.92], "stroke": line})
         for sx, sy in ((-0.2, 0.12), (0.2, 0.12), (-0.16, -0.2), (0.16, -0.2)):
             p.append({"prim": "circle", "at": [sx, sy], "r": 0.07, "fill": spots, "stroke": spots})
     p.append({"prim": "circle", "at": [0.0, 0.5], "r": 0.18, "fill": line, "stroke": line})
@@ -330,7 +330,7 @@ def fruit(body: str, line: str, leaf: bool = True, shape: str = "round", stem: b
     """Round/oval fruit: apple/orange/cherry/peach/pear (oval)."""
     p: list[dict] = []
     if stem:
-        p.append({"prim": "line", "at": [0.0, 0.45], "to": [0.08, 0.72], "stroke": "#6e4a2b"})
+        p.append({"prim": "line", "at": [0.0, 0.45], "to": [0.08, 0.27], "stroke": "#6e4a2b"})
     if leaf:
         p.append(
             {
@@ -1316,7 +1316,7 @@ def magnet(body="#e2473b", line="#a01f30", tip="#dfe3e6") -> dict:
 def organ(kind="heart", body="#e2616f", line="#b03a4a") -> dict:
     """Soft anatomy: lungs / brain / bone (heart has a hand recipe)."""
     if kind == "lungs":
-        p = [{"prim": "line", "at": [0, 0.5], "to": [0, -0.2], "stroke": "#b09a6a"}]
+        p = [{"prim": "line", "at": [0, 0.5], "to": [0, -0.7], "stroke": "#b09a6a"}]
         for sx in (-1, 1):
             p.append(
                 {

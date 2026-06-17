@@ -180,11 +180,11 @@ ICON_RECIPES: dict[str, dict] = {
                 "fill": "#f4c08a",
                 "stroke": "#c98b4d",
             },
-            {"prim": "line", "at": [0.0, 0.44], "to": [0.0, -0.1], "stroke": "#3b6ea5"},
-            {"prim": "line", "at": [0.0, 0.28], "to": [-0.32, 0.05], "stroke": "#3b6ea5"},
-            {"prim": "line", "at": [0.0, 0.28], "to": [0.32, 0.05], "stroke": "#3b6ea5"},
-            {"prim": "line", "at": [0.0, -0.1], "to": [-0.26, -0.62], "stroke": "#26354d"},
-            {"prim": "line", "at": [0.0, -0.1], "to": [0.26, -0.62], "stroke": "#26354d"},
+            {"prim": "line", "at": [0.0, 0.44], "to": [0.0, -0.54], "stroke": "#3b6ea5"},
+            {"prim": "line", "at": [0.0, 0.28], "to": [-0.32, -0.23], "stroke": "#3b6ea5"},
+            {"prim": "line", "at": [0.0, 0.28], "to": [0.32, -0.23], "stroke": "#3b6ea5"},
+            {"prim": "line", "at": [0.0, -0.1], "to": [-0.26, -0.52], "stroke": "#26354d"},
+            {"prim": "line", "at": [0.0, -0.1], "to": [0.26, -0.52], "stroke": "#26354d"},
         ]
     },
     "mountain": {

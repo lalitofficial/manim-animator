@@ -40,6 +40,24 @@ def test_family_aliases_resolve():
     assert icons.compose("kitty") and icons.compose("bunny")  # synonyms hit the corpus
 
 
+def test_no_stray_lines_in_composed_icons():
+    """Regression for the line-prim absolute/relative bug (a `line` part's `to` is a DELTA
+    from `at`, not an absolute point). It silently gave birds stilt legs (y→-1.12), quadrupeds
+    tails spiking past the legs (x→-1.32), and the person a stub torso. Pin the geometry."""
+    from engine import geometry as g
+
+    for bird in ("duck", "penguin", "robin", "owl", "chicken", "eagle"):
+        x0, y0, x1, y1 = g.strokes_bbox(icons.compose(bird))
+        assert y0 >= -0.8, f"{bird} has stilt legs (y-min {y0:.2f})"
+    for q in ("cat", "cow", "dog", "horse", "fox", "lion"):
+        x0, y0, x1, y1 = g.strokes_bbox(icons.compose(q))
+        assert x0 >= -1.0 and x1 <= 1.1, f"{q} has a stray tail (x {x0:.2f}..{x1:.2f})"
+    x0, y0, x1, y1 = g.strokes_bbox(icons.compose("person"))
+    assert y0 <= -0.5 and y1 >= 0.7, f"person limbs detached/stubbed (y {y0:.2f}..{y1:.2f})"
+    # winged bugs drop the walking legs (butterfly is wings, not a centipede)
+    assert g.strokes_bbox(icons.compose("butterfly"))[1] >= -0.75
+
+
 def test_science_concepts_draw_as_filled_icons():
     """The education domain (delivered as composed families, not ingested BioIcons — §B10):
     common science nouns resolve to real filled cartoons in cartoon, so lessons stop boxing."""
