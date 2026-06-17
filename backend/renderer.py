@@ -22,7 +22,15 @@ def _build_mobject(spec: SceneObject):
     (they reference other objects) — see `_make_scene_class`."""
     import numpy as np
     from manim import (
-        Arrow, Circle, Dot, Line, Polygon, Rectangle, Square, Text, Triangle,
+        Arrow,
+        Circle,
+        Dot,
+        Line,
+        Polygon,
+        Rectangle,
+        Square,
+        Text,
+        Triangle,
     )
 
     color = spec.color
@@ -34,6 +42,7 @@ def _build_mobject(spec: SceneObject):
         m = Text(spec.text or "", font_size=spec.font_size, color=color)
     elif spec.type == "mathtex":
         from manim import MathTex  # needs LaTeX installed
+
         m = MathTex(spec.tex or "", color=color).scale(spec.font_size / 40)
     elif spec.type == "circle":
         m = Circle(radius=spec.radius, color=color)
@@ -59,6 +68,7 @@ def _build_mobject(spec: SceneObject):
         m = Arrow(np.array(spec.start), np.array(spec.end), color=color)
     elif spec.type == "asset":
         import assets
+
         # Asset colors come from `params` (each asset has a tasteful default);
         # the top-level `color` is for primitives only. build_asset never raises.
         m = assets.build_asset(spec.asset or "", **(spec.params or {}))
@@ -75,7 +85,15 @@ def _build_mobject(spec: SceneObject):
 def _make_scene_class(ir: SceneIR):
     import numpy as np
     from manim import (
-        Create, FadeIn, FadeOut, Scene as MScene, Transform, VGroup, Write,
+        Create,
+        FadeIn,
+        FadeOut,
+        Transform,
+        VGroup,
+        Write,
+    )
+    from manim import (
+        Scene as MScene,
     )
 
     class GeneratedScene(MScene):
@@ -124,8 +142,7 @@ def _make_scene_class(ir: SceneIR):
                     elif step.animation == "fadeout":
                         self.play(FadeOut(mob), run_time=d)
                     elif step.animation == "move" and step.to is not None:
-                        self.play(mob.animate.move_to(np.array(step.to, dtype=float)),
-                                  run_time=d)
+                        self.play(mob.animate.move_to(np.array(step.to, dtype=float)), run_time=d)
                     elif step.animation == "scale":
                         self.play(mob.animate.scale(step.factor), run_time=d)
                     elif step.animation == "transform" and step.into:
@@ -174,7 +191,13 @@ if __name__ == "__main__":
             "title": "asset demo",
             "objects": [
                 {"id": "road", "type": "asset", "asset": "road", "position": [0, -2.5]},
-                {"id": "man", "type": "asset", "asset": "man", "position": [-5, -1.4], "scale": 0.9},
+                {
+                    "id": "man",
+                    "type": "asset",
+                    "asset": "man",
+                    "position": [-5, -1.4],
+                    "scale": 0.9,
+                },
                 {"id": "tree", "type": "asset", "asset": "tree", "position": [4, -1.2]},
                 {"id": "sun", "type": "asset", "asset": "sun", "position": [-4.5, 2.5]},
                 {"id": "mystery", "type": "asset", "asset": "dragon", "position": [3, 2]},

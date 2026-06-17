@@ -18,9 +18,9 @@ ask for — no prompt edits needed.
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 SVG_DIR = Path(__file__).resolve().parent / "assets" / "svg"
 
@@ -86,10 +86,26 @@ def catalog() -> str:
 #   Imports are local to each factory so this module is importable without
 #   manim present (the planner imports `catalog()`/`known_names()` only).
 # --------------------------------------------------------------------------- #
-@register("stick_figure",
-          aliases=["man", "person", "human", "boy", "girl", "woman", "people",
-                   "student", "teacher", "figure", "stickman", "stick_man", "walker"],
-          params="color, height", desc="a stick-figure person")
+@register(
+    "stick_figure",
+    aliases=[
+        "man",
+        "person",
+        "human",
+        "boy",
+        "girl",
+        "woman",
+        "people",
+        "student",
+        "teacher",
+        "figure",
+        "stickman",
+        "stick_man",
+        "walker",
+    ],
+    params="color, height",
+    desc="a stick-figure person",
+)
 def stick_figure(color="#E6EDF3", height=2.0):
     from manim import DOWN, LEFT, RIGHT, UP, Circle, Line, VGroup
 
@@ -104,38 +120,48 @@ def stick_figure(color="#E6EDF3", height=2.0):
     return fig
 
 
-@register("road", aliases=["street", "path", "highway", "ground", "floor"],
-          params="color, width", desc="a horizontal road with center dashes")
+@register(
+    "road",
+    aliases=["street", "path", "highway", "ground", "floor"],
+    params="color, width",
+    desc="a horizontal road with center dashes",
+)
 def road(color="#30363D", width=14.0, height=1.6):
-    from manim import LEFT, RIGHT, Line, Rectangle, VGroup
     import numpy as np
+    from manim import LEFT, RIGHT, Line, Rectangle, VGroup
 
     # A road is conceptually frame-wide; small models often shrink it to a box.
     # Clamp so it always reads as a road (callers wanting a short path use a line).
     width = max(float(width), 8.0)
-    surface = Rectangle(width=width, height=height, fill_color=color,
-                        fill_opacity=1.0, stroke_width=0)
+    surface = Rectangle(
+        width=width, height=height, fill_color=color, fill_opacity=1.0, stroke_width=0
+    )
     dashes = VGroup()
     x = -width / 2 + 0.7
     while x < width / 2 - 0.5:
-        dashes.add(Line(LEFT * 0.35, RIGHT * 0.35, color="#E3B341", stroke_width=6)
-                   .move_to(np.array([x, 0, 0])))
+        dashes.add(
+            Line(LEFT * 0.35, RIGHT * 0.35, color="#E3B341", stroke_width=6).move_to(
+                np.array([x, 0, 0])
+            )
+        )
         x += 1.4
     return VGroup(surface, dashes)
 
 
-@register("car", aliases=["vehicle", "automobile"],
-          params="color", desc="a simple side-view car")
+@register("car", aliases=["vehicle", "automobile"], params="color", desc="a simple side-view car")
 def car(color="#58A6FF"):
     from manim import DOWN, LEFT, RIGHT, UP, Circle, Rectangle, VGroup
 
     body = Rectangle(width=2.2, height=0.6, fill_color=color, fill_opacity=1, stroke_width=0)
-    cabin = (Rectangle(width=1.1, height=0.5, fill_color=color, fill_opacity=1, stroke_width=0)
-             .move_to(UP * 0.5 + LEFT * 0.1))
-    w1 = Circle(radius=0.28, fill_color="#0E1116", fill_opacity=1, stroke_color="#8B949E",
-                stroke_width=3).move_to(DOWN * 0.35 + LEFT * 0.6)
-    w2 = Circle(radius=0.28, fill_color="#0E1116", fill_opacity=1, stroke_color="#8B949E",
-                stroke_width=3).move_to(DOWN * 0.35 + RIGHT * 0.6)
+    cabin = Rectangle(
+        width=1.1, height=0.5, fill_color=color, fill_opacity=1, stroke_width=0
+    ).move_to(UP * 0.5 + LEFT * 0.1)
+    w1 = Circle(
+        radius=0.28, fill_color="#0E1116", fill_opacity=1, stroke_color="#8B949E", stroke_width=3
+    ).move_to(DOWN * 0.35 + LEFT * 0.6)
+    w2 = Circle(
+        radius=0.28, fill_color="#0E1116", fill_opacity=1, stroke_color="#8B949E", stroke_width=3
+    ).move_to(DOWN * 0.35 + RIGHT * 0.6)
     return VGroup(body, cabin, w1, w2)
 
 
@@ -143,29 +169,39 @@ def car(color="#58A6FF"):
 def tree(color="#3FB950"):
     from manim import DOWN, UP, Circle, Rectangle, VGroup
 
-    trunk = Rectangle(width=0.35, height=1.0, fill_color="#8B5A2B", fill_opacity=1,
-                      stroke_width=0).move_to(DOWN * 0.5)
+    trunk = Rectangle(
+        width=0.35, height=1.0, fill_color="#8B5A2B", fill_opacity=1, stroke_width=0
+    ).move_to(DOWN * 0.5)
     foliage = Circle(radius=0.8, fill_color=color, fill_opacity=1, stroke_width=0).move_to(UP * 0.5)
     return VGroup(trunk, foliage)
 
 
 @register("house", aliases=["home"], params="color", desc="a house (square + roof)")
 def house(color="#D29922"):
-    from manim import DOWN, Polygon, Rectangle, Square, VGroup
     import numpy as np
+    from manim import DOWN, Polygon, Rectangle, Square, VGroup
 
-    walls = Square(side_length=1.6, fill_color=color, fill_opacity=1, stroke_width=0).move_to(DOWN * 0.2)
-    roof = Polygon(np.array([-1.0, 0.6, 0]), np.array([1.0, 0.6, 0]), np.array([0, 1.5, 0]),
-                   fill_color="#B62324", fill_opacity=1, stroke_width=0)
-    door = Rectangle(width=0.4, height=0.7, fill_color="#3A2410", fill_opacity=1,
-                     stroke_width=0).move_to(DOWN * 0.6)
+    walls = Square(side_length=1.6, fill_color=color, fill_opacity=1, stroke_width=0).move_to(
+        DOWN * 0.2
+    )
+    roof = Polygon(
+        np.array([-1.0, 0.6, 0]),
+        np.array([1.0, 0.6, 0]),
+        np.array([0, 1.5, 0]),
+        fill_color="#B62324",
+        fill_opacity=1,
+        stroke_width=0,
+    )
+    door = Rectangle(
+        width=0.4, height=0.7, fill_color="#3A2410", fill_opacity=1, stroke_width=0
+    ).move_to(DOWN * 0.6)
     return VGroup(walls, roof, door)
 
 
 @register("sun", params="color", desc="a sun with rays")
 def sun(color="#F2CC60"):
-    from manim import Circle, Line, VGroup
     import numpy as np
+    from manim import Circle, Line, VGroup
 
     disc = Circle(radius=0.6, fill_color=color, fill_opacity=1, stroke_width=0)
     rays = VGroup()
@@ -179,7 +215,6 @@ def sun(color="#F2CC60"):
 @register("cloud", params="color", desc="a fluffy cloud")
 def cloud(color="#C9D1D9"):
     from manim import LEFT, RIGHT, Circle, VGroup
-    import numpy as np
 
     parts = VGroup(
         Circle(radius=0.5, fill_color=color, fill_opacity=1, stroke_width=0).move_to(LEFT * 0.6),
@@ -191,23 +226,33 @@ def cloud(color="#C9D1D9"):
 
 @register("mountain", aliases=["hill"], params="color", desc="a mountain peak")
 def mountain(color="#6E7681"):
+    import numpy as np
     from manim import Polygon
-    import numpy as np
 
-    return Polygon(np.array([-1.5, -0.8, 0]), np.array([1.5, -0.8, 0]), np.array([0, 1.2, 0]),
-                   fill_color=color, fill_opacity=1, stroke_width=0)
+    return Polygon(
+        np.array([-1.5, -0.8, 0]),
+        np.array([1.5, -0.8, 0]),
+        np.array([0, 1.2, 0]),
+        fill_color=color,
+        fill_opacity=1,
+        stroke_width=0,
+    )
 
 
-@register("building", aliases=["tower", "skyscraper"], params="color", desc="a tall building with windows")
+@register(
+    "building", aliases=["tower", "skyscraper"], params="color", desc="a tall building with windows"
+)
 def building(color="#484F58"):
-    from manim import DOWN, Rectangle, VGroup
     import numpy as np
+    from manim import Rectangle, VGroup
 
     body = Rectangle(width=1.4, height=3.0, fill_color=color, fill_opacity=1, stroke_width=0)
     windows = VGroup()
     for row in range(5):
         for col in range(2):
-            w = Rectangle(width=0.3, height=0.3, fill_color="#F2CC60", fill_opacity=1, stroke_width=0)
+            w = Rectangle(
+                width=0.3, height=0.3, fill_color="#F2CC60", fill_opacity=1, stroke_width=0
+            )
             w.move_to(np.array([-0.35 + col * 0.7, 1.0 - row * 0.5, 0]))
             windows.add(w)
     return VGroup(body, windows)
@@ -218,8 +263,12 @@ def book(color="#A371F7"):
     from manim import LEFT, Line, Rectangle, VGroup
 
     cover = Rectangle(width=1.4, height=1.8, fill_color=color, fill_opacity=1, stroke_width=0)
-    spine = Line(cover.get_top() + LEFT * 0.6, cover.get_bottom() + LEFT * 0.6,
-                 color="#0E1116", stroke_width=4)
+    spine = Line(
+        cover.get_top() + LEFT * 0.6,
+        cover.get_bottom() + LEFT * 0.6,
+        color="#0E1116",
+        stroke_width=4,
+    )
     return VGroup(cover, spine)
 
 
@@ -228,8 +277,9 @@ def bulb(color="#F2CC60"):
     from manim import DOWN, Circle, Rectangle, VGroup
 
     glass = Circle(radius=0.55, fill_color=color, fill_opacity=0.9, stroke_width=0)
-    base = Rectangle(width=0.4, height=0.35, fill_color="#8B949E", fill_opacity=1,
-                     stroke_width=0).move_to(DOWN * 0.7)
+    base = Rectangle(
+        width=0.4, height=0.35, fill_color="#8B949E", fill_opacity=1, stroke_width=0
+    ).move_to(DOWN * 0.7)
     return VGroup(glass, base)
 
 
@@ -262,8 +312,9 @@ def _fallback(name: str):
     """A labeled box so an unknown asset is visible, not fatal."""
     from manim import RoundedRectangle, Text, VGroup
 
-    box = RoundedRectangle(width=2.6, height=1.2, corner_radius=0.15,
-                           color="#8B949E", stroke_width=3)
+    box = RoundedRectangle(
+        width=2.6, height=1.2, corner_radius=0.15, color="#8B949E", stroke_width=3
+    )
     label = Text(name, font_size=22, color="#8B949E")
     return VGroup(box, label)
 

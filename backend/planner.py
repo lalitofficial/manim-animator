@@ -36,8 +36,20 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 # Preference order when OLLAMA_MODEL isn't set; first one that's installed wins.
 PREFERRED_MODELS = ["qwen2.5:7b", "qwen2.5", "llama3.1:8b", "llama3.1", "gemma3"]
 
-IR_TYPES = {"text", "mathtex", "circle", "square", "rectangle", "triangle",
-            "polygon", "line", "arrow", "dot", "asset", "group"}
+IR_TYPES = {
+    "text",
+    "mathtex",
+    "circle",
+    "square",
+    "rectangle",
+    "triangle",
+    "polygon",
+    "line",
+    "arrow",
+    "dot",
+    "asset",
+    "group",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -148,21 +160,30 @@ def pick_model() -> str | None:
     return avail[0]
 
 
-def _payload(model, messages, temperature, num_predict, keep_alive) -> bytes:
+def _payload(
+    model, messages, temperature, num_predict, keep_alive, fmt: str | None = "json"
+) -> bytes:
     options = {"temperature": temperature}
     if num_predict:
         options["num_predict"] = num_predict  # hard cap on output tokens (latency)
-    return json.dumps({
+    body = {
         "model": model,
-        "format": "json",  # constrain to a valid JSON object
         "options": options,
         "keep_alive": keep_alive,  # keep weights resident between calls
         "messages": messages,
-    }).encode()
+    }
+    if fmt:  # "json" forces ONE object — leave None for NDJSON action streams
+        body["format"] = fmt
+    return json.dumps(body).encode()
 
 
-def _chat(model: str, messages: list[dict], temperature: float = 0.4,
-          num_predict: int | None = None, keep_alive: str = "30m") -> str:
+def _chat(
+    model: str,
+    messages: list[dict],
+    temperature: float = 0.4,
+    num_predict: int | None = None,
+    keep_alive: str = "30m",
+) -> str:
     body = json.loads(_payload(model, messages, temperature, num_predict, keep_alive))
     body["stream"] = False
     req = urllib.request.Request(
@@ -174,11 +195,17 @@ def _chat(model: str, messages: list[dict], temperature: float = 0.4,
         return json.loads(resp.read())["message"]["content"]
 
 
-def chat_stream(model: str, messages: list[dict], temperature: float = 0.4,
-                num_predict: int | None = None, keep_alive: str = "30m"):
+def chat_stream(
+    model: str,
+    messages: list[dict],
+    temperature: float = 0.4,
+    num_predict: int | None = None,
+    keep_alive: str = "30m",
+    fmt: str | None = "json",
+):
     """Yield content chunks as the model generates — lets callers act on
     early fields (e.g. speak the narration) long before the JSON is done."""
-    body = json.loads(_payload(model, messages, temperature, num_predict, keep_alive))
+    body = json.loads(_payload(model, messages, temperature, num_predict, keep_alive, fmt))
     body["stream"] = True
     req = urllib.request.Request(
         f"{OLLAMA_HOST}/api/chat",
@@ -200,10 +227,13 @@ def chat_stream(model: str, messages: list[dict], temperature: float = 0.4,
 # --------------------------------------------------------------------------- #
 def plan_outline(text: str, model: str) -> dict:
     system = OUTLINE_SYSTEM.replace("__CATALOG__", catalog())
-    raw = _chat(model, [
-        {"role": "system", "content": system},
-        {"role": "user", "content": f"Topic: {text}"},
-    ])
+    raw = _chat(
+        model,
+        [
+            {"role": "system", "content": system},
+            {"role": "user", "content": f"Topic: {text}"},
+        ],
+    )
     try:
         return json.loads(_strip_to_json(raw))
     except json.JSONDecodeError:
@@ -239,7 +269,7 @@ def build_ir(text: str, outline: dict, model: str, attempts: int = 4) -> Scene:
         {"role": "user", "content": f"Topic: {text}\n\nOutline:\n{json.dumps(outline)}"},
     ]
     last_err: Exception | None = None
-    for i in range(attempts):
+    for _ in range(attempts):
         raw = _chat(model, messages)
         try:
             data = _coerce(json.loads(_strip_to_json(raw)))
@@ -247,9 +277,13 @@ def build_ir(text: str, outline: dict, model: str, attempts: int = 4) -> Scene:
         except (json.JSONDecodeError, ValidationError) as e:
             last_err = e
             messages.append({"role": "assistant", "content": raw})
-            messages.append({"role": "user", "content":
-                f"That JSON was invalid:\n{e}\n"
-                "Fix ALL of these errors and return the full corrected Scene IR JSON only."})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"That JSON was invalid:\n{e}\n"
+                    "Fix ALL of these errors and return the full corrected Scene IR JSON only.",
+                }
+            )
     raise last_err if last_err else RuntimeError("planner produced no output")
 
 
@@ -265,13 +299,29 @@ def plan_mock(text: str) -> Scene:
             "title": title,
             "background": "#0E1116",
             "objects": [
-                {"id": "title", "type": "text", "text": title,
-                 "font_size": 48, "position": [0, 2.5, 0], "color": "#58A6FF"},
-                {"id": "orb", "type": "circle", "radius": 1.0,
-                 "position": [-3, -0.5, 0], "color": "#3FB950"},
-                {"id": "caption", "type": "text",
-                 "text": "(mock planner — start Ollama for real plans)",
-                 "font_size": 22, "position": [0, -3, 0], "color": "#8B949E"},
+                {
+                    "id": "title",
+                    "type": "text",
+                    "text": title,
+                    "font_size": 48,
+                    "position": [0, 2.5, 0],
+                    "color": "#58A6FF",
+                },
+                {
+                    "id": "orb",
+                    "type": "circle",
+                    "radius": 1.0,
+                    "position": [-3, -0.5, 0],
+                    "color": "#3FB950",
+                },
+                {
+                    "id": "caption",
+                    "type": "text",
+                    "text": "(mock planner — start Ollama for real plans)",
+                    "font_size": 22,
+                    "position": [0, -3, 0],
+                    "color": "#8B949E",
+                },
             ],
             "steps": [
                 {"animation": "write", "target": "title", "duration": 1.2},
@@ -298,6 +348,7 @@ def plan(text: str) -> Scene:
 
 if __name__ == "__main__":
     import sys
+
     prompt = " ".join(sys.argv[1:]) or "a man walking on a road"
     print(f"# model: {pick_model()}\n")
     print(plan(prompt).model_dump_json(indent=2))

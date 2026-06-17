@@ -1,402 +1,455 @@
-"""Lesson planner — turns a topic into a *streamed* sequence of board segments.
+"""Lesson engine v2 — a topic becomes a *stream of board actions*.
 
-This is the live-board planner. Where planner.py emits one Scene for an offline
-mp4, this emits a lesson as it is planned, segment by segment, so the board
-starts drawing while later segments are still being thought up.
+v1 generated one JSON blob per segment: the board waited ~(segment tokens /
+tok rate) between drawings. v2 makes the model emit NDJSON — one action per
+line — and dispatches every action the moment its line closes:
 
-Latency is the design driver (local 7B models generate ~10 tok/s):
+    per-action latency  =  line tokens / generation rate   (~30 tok ≈ 2s)
+    perceived stall     =  max(0, gen time − playback time of previous action)
 
-  intro    deterministic, no LLM — the title is on the board and the teacher
-           is talking in <1s while the model warms up on the real work
-  call 1   topic -> {title, plan, narration, objects, steps}  — the lesson
-           outline and the first real segment in ONE round trip
-  call 2+  one small call per remaining segment
-  voice    every call streams; the moment the "narration" field closes we
-           emit it, so speech starts seconds in, not after full generation
-  cache    the segment system prompt is byte-identical across calls (board
-           state travels in the user message), so Ollama's KV prefix cache
-           re-evals only ~100 new tokens per segment instead of the world
+Playback (animation 0.6-2.5s + concurrent speech) roughly matches per-line
+generation, so the pipeline stays saturated and the board never visibly idles.
+See actions.py for the protocol, layout solver, and macros.
 
-Same safety rules as planner.py: the model only ever emits IR (no code), and
-every failure degrades — a bad segment becomes a narration-only card, a dead
-Ollama becomes a deterministic mock lesson. A lesson never hard-fails.
+Latency ladder (everything is tokens):
+  intro      deterministic actions, 0 LLM tokens, <1s first paint
+  call 1     {"title"} {"plan"} lines then segment-1 actions — one round trip
+  call 2+    one small action stream per remaining segment
+  errors     a bad line is DROPPED (free); only a fully-empty stream falls
+             back to a legacy whole-JSON parse, then to a narration card
+  cache      system prompts are byte-identical across calls (board state in
+             the user message) so Ollama re-evals only the new suffix
+  model      prefers a small fast model for the live lane (gemma3:4b) —
+             override with OLLAMA_LESSON_MODEL / OLLAMA_MODEL
 """
 
 from __future__ import annotations
 
 import json
-import re
+import os
 import time
-from typing import Iterator, Optional
+from collections.abc import Iterator
 
-from pydantic import BaseModel, Field
-
-from assets import catalog
+from actions import BoardLayout, LineAssembler, actions_from_dict, auto_reveal
 from ir import SceneObject, Step
-from planner import _coerce, _strip_to_json, chat_stream, ollama_available, pick_model
+from modes import ModeSpec, get_mode
+from planner import _strip_to_json, chat_stream, list_models, ollama_available
 
-# Matches a completed `"narration": "..."` value in a *partial* JSON stream.
-NARRATION_RE = re.compile(r'"narration"\s*:\s*"((?:\\.|[^"\\])*)"')
-
-
-class SegmentIR(BaseModel):
-    """One teaching beat: what the teacher says + what gets drawn."""
-    narration: str = ""
-    clear: bool = Field(False, description="Wipe the board before this segment.")
-    objects: list[SceneObject] = Field(default_factory=list)
-    steps: list[Step] = Field(default_factory=list)
+# The live lane wants tokens/sec above all; quality holds up because each
+# call is one small teaching beat. Bigger models stay better for offline mp4.
+LESSON_PREFERRED = ["gemma3:4b", "gemma3", "qwen2.5:7b", "qwen2.5", "llama3.1"]
 
 
-class LessonStart(SegmentIR):
-    """Call-1 payload: the plan and the first drawn segment together."""
-    title: str = "Lesson"
-    plan: list[dict] = Field(default_factory=list)  # [{title, goal}], plan[0] == this segment
-
-
-# --------------------------------------------------------------------------- #
-# Prompts (built with .replace — they contain literal {}).
-# IMPORTANT: SEGMENT_SYSTEM must stay constant across calls within a lesson
-# (and across lessons) so Ollama's prefix cache keeps it hot. Anything that
-# varies (board state, plan, segment goal) goes in the *user* message.
-# --------------------------------------------------------------------------- #
-_SHARED_IR = """OBJECT shapes — EVERY object MUST start with a unique "id" string:
-- {"id":str,"type":"asset","asset":"<name>","params":{"color":hex},"position":[x,y],"scale":num}
-    use ONLY for real-world things: people, vehicles, nature, buildings, etc.
-- {"id":str,"type":"text","text":str,"font_size":num,"position":[x,y],"color":hex}
-- {"id":str,"type":"circle","radius":num,"position":[x,y],"color":hex}
-- {"id":str,"type":"square","width":num,...} / {"id":str,"type":"rectangle","width":num,"height":num,...}
-- {"id":str,"type":"triangle"|"polygon","points":[[x,y],...]}   (>=3 vertices)
-- {"id":str,"type":"line"|"arrow","start":[x,y],"end":[x,y],"color":hex}
-- {"id":str,"type":"dot","position":[x,y]}
-
-ASSET names (use for real things; do NOT fake them with shapes):
-__CATALOG__
-
-STEP shapes (run in order while you talk):
-{"animation":"write|create|fadein|fadeout|move|scale|transform|wait",
- "target":"object id", "to":[x,y] (move), "into":"id" (transform),
- "factor":num (scale), "duration":seconds}
-
-RULES:
-- BE BRIEF: narration is 1-3 short sentences; 1-4 new objects; 2-6 steps;
-  each "write"/"create" 0.8-2.0s. Compact JSON, no extra whitespace.
-- The user message lists what is ALREADY ON THE BOARD. Do not redefine those
-  ids; you MAY reference them in steps (move, fadeout, scale...).
-- Place new things in EMPTY space (origin center, +y up, x:[-6.5,6.5], y:[-3.5,3.5]).
-- Set "clear": true ONLY if the board is full or the topic shifts completely.
-- Labels: short text near the thing they label.
-- EVERY step except "wait" MUST have a "target".
-- A step "target" must be an id you defined in "objects" OR one already on the
-  board — never an id you didn't define. Steps with unknown ids are DROPPED."""
-
-START_SYSTEM = """You are a teacher starting a whiteboard lesson. In ONE JSON
-object (no markdown), give the lesson plan AND the first thing you draw:
-{
-  "narration": "1-3 friendly sentences you say while drawing this first part",
-  "title": "lesson title",
-  "plan": [{"title": "short segment name", "goal": "<=10 words, what to draw"}],
-  "clear": false,
-  "objects": [ {object} ],
-  "steps":   [ {step} ]
-}
-"narration" MUST be the FIRST field. "plan" MUST have EXACTLY 4 entries — the
-whole lesson in teaching order, ending with a recap. plan[0] is the segment you
-are drawing NOW (objects/steps here teach plan[0] only — later segments come in
-later turns, so plan[1..3] are titles+goals only).
-
-__SHARED__
-Output JSON only."""
-
-SEGMENT_SYSTEM = """You are a teacher mid-lesson, drawing on a whiteboard while
-talking. The user message gives the lesson plan, what is already on the board,
-and which segment to teach NOW. Output ONE JSON object (no markdown):
-{
-  "narration": "1-3 friendly sentences you say while drawing",
-  "clear": false,
-  "objects": [ {object} ],
-  "steps":   [ {step} ]
-}
-"narration" MUST be the FIRST field.
-
-__SHARED__
-Output JSON only."""
-
-START_SYSTEM = START_SYSTEM.replace("__SHARED__", _SHARED_IR)
-SEGMENT_SYSTEM = SEGMENT_SYSTEM.replace("__SHARED__", _SHARED_IR)
+def pick_lesson_model() -> str | None:
+    env = os.environ.get("OLLAMA_LESSON_MODEL") or os.environ.get("OLLAMA_MODEL")
+    if env:
+        return env
+    avail = list_models()
+    if not avail:
+        return None
+    base = lambda n: n.split(":")[0]
+    for p in LESSON_PREFERRED:
+        for m in avail:
+            if m == p or base(m) == base(p):
+                return m
+    return avail[0]
 
 
 # --------------------------------------------------------------------------- #
-# Streaming plan call with early narration
+# One LLM call -> stream of laid-out actions (with legacy-JSON fallback)
 # --------------------------------------------------------------------------- #
-def _plan_events(model: str, messages: list[dict], validate, attempts: int = 3,
-                 num_predict: int | None = None):
-    """Yield ("narration", text) as soon as it appears in the token stream,
-    then ("result", validated) — or raise after `attempts` repairs."""
-    narrated = False
-    last_err: Exception | None = None
-    for _ in range(attempts):
-        buf = ""
-        for chunk in chat_stream(model, messages, temperature=0.3,
-                                 num_predict=num_predict):
-            buf += chunk
-            if not narrated:
-                m = NARRATION_RE.search(buf)
-                if m:
-                    try:
-                        text = json.loads(f'"{m.group(1)}"')
-                    except json.JSONDecodeError:
-                        text = m.group(1)
-                    if text.strip():
-                        narrated = True
-                        yield ("narration", text)
-        try:
-            data = _coerce(json.loads(_strip_to_json(buf)))
-            yield ("result", validate(data))
-            return
-        # ValueError covers JSONDecodeError, pydantic's ValidationError, and
-        # the semantic errors raised by _segment_validator.
-        except ValueError as e:
-            last_err = e
-            messages.append({"role": "assistant", "content": buf})
-            messages.append({"role": "user", "content":
-                f"That JSON was invalid:\n{e}\n"
-                "Fix ALL of these errors and return the full corrected JSON only."})
-    raise last_err if last_err else RuntimeError("planner produced no output")
+def _stream_actions(
+    model: str,
+    messages: list[dict],
+    layout: BoardLayout,
+    seg_ids: set,
+    meta: dict | None,
+    num_predict: int,
+):
+    """Yield action dicts as lines close. Ends early on {"end":true} (the
+    HTTP response is dropped, saving every remaining token)."""
+    debug = bool(os.environ.get("LESSON_DEBUG"))
+    asm = LineAssembler(layout, seg_ids, meta)
+    buf, emitted = "", 0
+    stream = chat_stream(model, messages, temperature=0.3, num_predict=num_predict, fmt=None)
+    for chunk in stream:
+        buf += chunk
+        while "\n" in buf:
+            line, buf = buf.split("\n", 1)
+            acts = asm.feed(line)
+            if debug and not acts and line.strip() and not asm.pending:
+                print(f"  [drop] {line.strip()[:160]}", flush=True)
+            for act in acts:
+                if act["kind"] == "end":
+                    stream.close()  # early stop: unneeded tokens never decode
+                    return
+                emitted += 1
+                yield act
+    for act in asm.flush(buf):
+        if act["kind"] != "end":
+            emitted += 1
+            yield act
+    if emitted == 0:
+        # Legacy fallback: the model ignored NDJSON and produced one big
+        # object (possibly pretty-printed). Mine it for whatever is usable.
+        yield from _legacy_actions(buf, layout, seg_ids, meta)
 
 
-def _segment_validator(board: dict[str, list[float]], model_cls=SegmentIR):
-    """Schema-validate, then enforce step/id integrity *cheaply*: dangling
-    steps are pruned (a repair round trip costs ~40s locally; dropping a bad
-    step costs nothing). Only an effectively-empty segment triggers repair."""
-    def validate(data):
-        seg = model_cls.model_validate(data)
-        known = (set() if seg.clear else set(board)) | {o.id for o in seg.objects}
-        kept = []
-        for s in seg.steps:
-            if s.animation == "wait":
-                kept.append(s)
-                continue
-            if not s.target or s.target not in known:
-                continue
-            if s.animation == "transform" and (not s.into or s.into not in known):
-                continue
-            kept.append(s)
-        dropped = len(seg.steps) - len(kept)
-        # A declared object nothing animates would sit invisible forever
-        # (objects only appear via steps). Prepend a reveal for each, so
-        # "everything you declare gets drawn" holds even after pruning.
-        targeted = {s.target for s in kept} | {s.into for s in kept}
-        grouped = {m for o in seg.objects if o.type == "group" for m in (o.members or [])}
-        auto = [Step(animation="write" if o.type in ("text", "mathtex") else "create",
-                     target=o.id, duration=1.0)
-                for o in seg.objects if o.id not in targeted and o.id not in grouped]
-        seg.steps = auto + kept
-        if not seg.objects and sum(1 for s in kept if s.animation != "wait") < 2:
-            raise ValueError(
-                f"{dropped} step(s) referenced ids that are neither defined in "
-                '"objects" nor already on the board, leaving nothing to draw. '
-                'Define every id you target in "objects", or target only ids '
-                "from the board list.")
-        return seg
-    return validate
-
-
-def _board_summary(board: dict[str, list[float]]) -> str:
-    if not board:
-        return "(the board is empty)"
-    return "; ".join(f'"{oid}" at [{p[0]:g},{p[1]:g}]' for oid, p in board.items())
-
-
-def _plan_text(plan: list[dict]) -> str:
-    return " / ".join(f"{i + 1}. {p.get('title', '')}" for i, p in enumerate(plan))
+def _legacy_actions(raw: str, layout: BoardLayout, seg_ids: set, meta: dict | None):
+    try:
+        d = json.loads(_strip_to_json(raw))
+    except json.JSONDecodeError:
+        return
+    if not isinstance(d, dict):
+        return
+    if meta is not None:
+        meta.update({k: d[k] for k in ("title", "plan") if k in d})
+    if d.get("narration"):
+        yield {"kind": "say", "text": str(d["narration"])}
+    if d.get("clear"):
+        yield from actions_from_dict({"clear": True}, layout, seg_ids)
+    for o in d.get("objects") or []:
+        yield from actions_from_dict({"add": o}, layout, seg_ids)
+    for s in d.get("steps") or []:
+        yield from actions_from_dict({"play": s}, layout, seg_ids)
 
 
 # --------------------------------------------------------------------------- #
 # Deterministic pieces (no LLM)
 # --------------------------------------------------------------------------- #
-def _intro_segment(topic: str) -> SegmentIR:
-    """First paint in <1s: the title goes up while the model does real work."""
+def _title_actions(title: str, layout: BoardLayout, say: str | None = None) -> list[dict]:
+    """Write the title into the reserved band (bypasses panel clamping)."""
+    obj = SceneObject(
+        id="intro_title",
+        type="text",
+        text=title.title()[:60],
+        font_size=44,
+        position=(0.0, 3.1, 0.0),
+        color="#58A6FF",
+    )
+    layout.register(obj)
+    out = [{"kind": "say", "text": say}] if say else []
+    return out + [
+        {"kind": "add", "object": obj.model_dump()},
+        {
+            "kind": "play",
+            "step": Step(animation="write", target="intro_title", duration=1.4).model_dump(),
+        },
+    ]
+
+
+def _intro_actions(topic: str, layout: BoardLayout, greeting: bool = True) -> list[dict]:
     title = (topic.strip().split("\n")[0] or "Lesson")[:60]
-    return SegmentIR(
-        narration=f"Alright — let's learn about {title}. Let me sketch this out.",
-        objects=[SceneObject(id="intro_title", type="text", text=title.title(),
-                             font_size=44, position=(0.0, 3.2, 0.0), color="#58A6FF")],
-        steps=[Step(animation="write", target="intro_title", duration=1.4)],
+    say = f"Alright — let's look at {title}. Let me sketch this out." if greeting else None
+    return _title_actions(title, layout, say=say)
+
+
+def _panel_actions(
+    layout: BoardLayout, seg_index: int, title: str, policy: str = "columns"
+) -> list[dict]:
+    """Board real estate between segments, by mode policy:
+    columns — left column → right column → wipe + re-title → repeat;
+    scenes  — a fresh full stage for every scene (wipe + re-title);
+    full    — one canvas, no management (single-pass modes)."""
+    out: list[dict] = []
+    if policy == "scenes":
+        if seg_index > 1:
+            layout.clear()
+            out.append({"kind": "clear"})
+            out += _title_actions(title, layout)
+        layout.set_panel("full")
+        return out
+    if policy == "columns":
+        content_i = seg_index - 1  # 0-based among content segments
+        if content_i > 0 and content_i % 2 == 0:
+            layout.clear()
+            out.append({"kind": "clear"})
+            out += _title_actions(title, layout)
+        layout.set_panel("left" if content_i % 2 == 0 else "right")
+        return out
+    layout.set_panel("full")
+    return out
+
+
+def _card_actions(title: str, goal: str, index: int, layout: BoardLayout) -> list[dict]:
+    """Narration-only fallback card: a failed segment still teaches."""
+    obj = SceneObject(
+        id=f"fb_{index}",
+        type="text",
+        text=title,
+        font_size=30,
+        position=(0.0, 2.2 - index * 0.9, 0.0),
+        color="#8B949E",
     )
+    layout.place(obj)
+    return [
+        {"kind": "say", "text": goal or title},
+        {"kind": "add", "object": obj.model_dump()},
+        {"kind": "play", "step": Step(animation="write", target=obj.id, duration=1.0).model_dump()},
+    ]
 
 
-def _fallback_segment(title: str, goal: str, index: int) -> SegmentIR:
-    """A narration-only card so a failed segment still teaches something."""
-    return SegmentIR(
-        narration=goal or title,
-        objects=[SceneObject(id=f"fb_{index}", type="text", text=title,
-                             font_size=30, position=(0.0, 2.2 - index * 0.9, 0.0),
-                             color="#8B949E")],
-        steps=[Step(animation="write", target=f"fb_{index}", duration=1.0)],
-    )
-
-
-def _track_board(board: dict[str, list[float]], seg: SegmentIR) -> None:
-    """Maintain the ids+positions summary fed to the next segment prompt."""
-    if seg.clear:
-        board.clear()
-    for o in seg.objects:
-        if o.type != "group":
-            board[o.id] = [o.position[0], o.position[1]]
-    for s in seg.steps:
-        if s.animation == "fadeout" and s.target:
-            board.pop(s.target, None)
-        elif s.animation == "move" and s.target and s.to and s.target in board:
-            board[s.target] = [s.to[0], s.to[1]]
+def _normalize_plan(meta: dict, topic: str, mode: ModeSpec) -> tuple[str, list[dict]]:
+    title = str(meta.get("title") or topic[:60])
+    plan = []
+    for p in (meta.get("plan") or [])[:4]:
+        if isinstance(p, dict):
+            plan.append(
+                {
+                    "title": str(p.get("title") or p.get("name") or ""),
+                    "goal": str(p.get("goal") or p.get("desc") or ""),
+                }
+            )
+        elif p:
+            plan.append({"title": str(p), "goal": ""})
+    # Pad a short plan out to the mode's default arc (a 1-entry "plan" is a
+    # common model slip; the arc must still end properly).
+    while len(plan) < min(3, len(mode.default_plan)):
+        plan.append(mode.default_plan[min(len(plan), len(mode.default_plan) - 1)])
+    if not plan:
+        plan = [{"title": mode.label, "goal": topic}]
+    return title, plan
 
 
 # --------------------------------------------------------------------------- #
-# Mock lesson (no Ollama) — keeps the live board demoable offline.
+# Mock lesson (no Ollama) — same action protocol, zero models.
 # --------------------------------------------------------------------------- #
 def mock_lesson(topic: str) -> Iterator[dict]:
+    layout = BoardLayout()
     title = (topic.strip().split("\n")[0] or "Lesson")[:60]
-    yield {"type": "lesson", "title": title, "model": None,
-           "segments": [{"title": "Introduction"}, {"title": "The idea"}, {"title": "Recap"}]}
-    segs = [
-        _intro_segment(topic),
-        SegmentIR(
-            narration="Here's a simple picture of the idea: one thing leads to another.",
-            objects=[
-                SceneObject(id="m_a", type="circle", radius=0.9, position=(-3.5, 0.0, 0.0), color="#3FB950"),
-                SceneObject(id="m_b", type="square", width=1.8, position=(3.5, 0.0, 0.0), color="#D29922"),
-                SceneObject(id="m_arrow", type="arrow", start=(-2.4, 0.0, 0.0), end=(2.4, 0.0, 0.0), color="#E6EDF3"),
-            ],
-            steps=[Step(animation="create", target="m_a", duration=1.0),
-                   Step(animation="create", target="m_b", duration=1.0),
-                   Step(animation="create", target="m_arrow", duration=0.9),
-                   Step(animation="scale", target="m_b", factor=1.25, duration=0.6)]),
-        SegmentIR(
-            narration="And that's the heart of it. Start Ollama to get real lessons on any topic.",
-            objects=[SceneObject(id="m_note", type="text",
-                                 text="(mock lesson — start Ollama for real teaching)",
-                                 font_size=22, position=(0.0, -3.2, 0.0), color="#8B949E")],
-            steps=[Step(animation="fadein", target="m_note", duration=0.8),
-                   Step(animation="wait", duration=0.5)]),
+    yield {
+        "type": "lesson",
+        "title": title,
+        "model": None,
+        "segments": [{"title": "Introduction"}, {"title": "The idea"}, {"title": "Recap"}],
+    }
+    yield {"type": "segment_start", "index": 0, "title": "Introduction"}
+    for a in _intro_actions(topic, layout):
+        yield {"type": "action", "seg": 0, **a}
+    yield {"type": "segment_start", "index": 1, "title": "The idea"}
+    layout.set_panel("left")
+    seg_ids: set = set()
+    demo = [
+        {"say": "Here's a simple picture of the idea: one thing leads to another."},
+        {
+            "add": {
+                "id": "m_a",
+                "type": "circle",
+                "radius": 0.9,
+                "position": [-3.5, 0],
+                "color": "#3FB950",
+            }
+        },
+        {"play": {"animation": "create", "target": "m_a", "duration": 1.0}},
+        {
+            "add": {
+                "id": "m_b",
+                "type": "square",
+                "width": 1.8,
+                "position": [3.5, 0],
+                "color": "#D29922",
+            }
+        },
+        {"play": {"animation": "create", "target": "m_b", "duration": 1.0}},
+        {"macro": "flow", "from": "m_a", "to": "m_b", "text": "leads to"},
+        {"play": {"animation": "scale", "target": "m_b", "factor": 1.25, "duration": 0.6}},
     ]
-    for i, s in enumerate(segs):
-        yield {"type": "segment", "index": i, "title": ["Introduction", "The idea", "Recap"][i],
-               **s.model_dump()}
+    for d in demo:
+        for a in actions_from_dict(d, layout, seg_ids):
+            yield {"type": "action", "seg": 1, **a}
+    yield {"type": "segment_start", "index": 2, "title": "Recap"}
+    layout.set_panel("right")
+    for d in [
+        {"say": "And that's the heart of it. Start Ollama to get real lessons on any topic."},
+        {
+            "add": {
+                "id": "m_note",
+                "type": "text",
+                "text": "(mock lesson — start Ollama for real teaching)",
+                "font_size": 22,
+                "position": [0, -3.2],
+                "color": "#8B949E",
+            }
+        },
+        {"play": {"animation": "fadein", "target": "m_note", "duration": 0.8}},
+    ]:
+        for a in actions_from_dict(d, layout, set()):
+            yield {"type": "action", "seg": 2, **a}
     yield {"type": "done"}
 
 
 # --------------------------------------------------------------------------- #
 # Public generator — the websocket endpoint iterates this.
 # --------------------------------------------------------------------------- #
-def stream_lesson(topic: str, model: Optional[str] = None) -> Iterator[dict]:
-    """Yield lesson events: intro segment immediately, then narration/segment
-    events as the model produces them, then done.
+def stream_lesson(topic: str, model: str | None = None, mode: str = "learn") -> Iterator[dict]:
+    """Yield session events: segment_start / action (one per board action) /
+    lesson (when the plan is known) / status / done.
 
-    Synchronous generator (Ollama calls block); the caller runs it on a
-    thread (asyncio.to_thread / run_in_executor) and forwards events.
+    `mode` selects a ModeSpec (modes.py): same engine, different voice, arc,
+    board policy, and budgets.
     """
+    spec = get_mode(mode)
     t0 = time.time()
     elapsed = lambda: round(time.time() - t0, 1)
-    model = model or (pick_model() if ollama_available() else None)
+    model = model or (pick_lesson_model() if ollama_available() else None)
     if not model:
         yield from mock_lesson(topic)
         return
 
-    # 0. Instant intro — the board is alive before the model says a word.
-    intro = _intro_segment(topic)
-    board: dict[str, list[float]] = {}
-    _track_board(board, intro)
-    yield {"type": "segment", "index": 0, "title": "Introduction", **intro.model_dump()}
+    layout = BoardLayout()
 
-    # 1. One round trip: lesson plan + first real segment, narration streamed.
-    yield {"type": "status", "status": "planning the lesson", "t": elapsed()}
-    start: LessonStart | None = None
+    # Segment 0: deterministic intro — first paint with zero LLM tokens.
+    yield {"type": "segment_start", "index": 0, "title": "Introduction", "t": 0}
+    for a in _intro_actions(topic, layout, greeting=spec.greeting):
+        yield {"type": "action", "seg": 0, **a, "t": elapsed()}
+
+    # Call 1: (title + plan if the mode has an arc) + first actions,
+    # dispatched as lines close.
+    yield {"type": "status", "status": f"{spec.label.lower()}: planning", "t": elapsed()}
+    yield {"type": "segment_start", "index": 1, "title": "", "t": elapsed()}
+    for a in _panel_actions(layout, 1, topic, spec.panel_policy):
+        yield {"type": "action", "seg": 1, **a, "t": elapsed()}
+    meta: dict = {}
+    seg_ids: set = set()
+    played: set = set()
+    lesson_sent = False
+    emitted = 0
     messages = [
-        {"role": "system", "content": START_SYSTEM},
-        {"role": "user", "content":
-            f"Topic: {topic}\nAlready on the board: {_board_summary(board)}"},
+        {"role": "system", "content": spec.start_system},
+        {"role": "user", "content": f"Topic: {topic}\nAlready on the board: {layout.summary()}"},
     ]
     try:
-        for kind, val in _plan_events(model, messages,
-                                      _segment_validator(board, LessonStart),
-                                      num_predict=900):
-            if kind == "narration":
-                yield {"type": "narration", "index": 1, "text": val, "t": elapsed()}
-            else:
-                start = val
+        for a in _stream_actions(
+            model,
+            messages,
+            layout,
+            seg_ids,
+            meta if spec.has_plan else None,
+            num_predict=spec.num_predict_start,
+        ):
+            if a["kind"] == "play":
+                played.add(a["step"].get("target"))
+            emitted += 1
+            yield {"type": "action", "seg": 1, **a, "t": elapsed()}
+            if spec.has_plan and not lesson_sent and meta.get("plan"):
+                title, plan = _normalize_plan(meta, topic, spec)
+                lesson_sent = True
+                yield {
+                    "type": "lesson",
+                    "title": title,
+                    "model": model,
+                    "t": elapsed(),
+                    "segments": [{"title": "Introduction"}]
+                    + [{"title": p.get("title", "")} for p in plan],
+                }
     except Exception:
-        start = None
+        pass
+    title, plan = _normalize_plan(meta, topic, spec)
+    if emitted == 0:
+        first = plan[0] if plan else {"title": spec.label, "goal": topic}
+        for a in _card_actions(first.get("title", spec.label), first.get("goal", ""), 1, layout):
+            yield {"type": "action", "seg": 1, **a, "t": elapsed()}
+    if not lesson_sent:
+        segs = [{"title": "Introduction"}] + (
+            [{"title": p.get("title", "")} for p in plan]
+            if spec.has_plan
+            else [{"title": spec.label}]
+        )
+        yield {"type": "lesson", "title": title, "model": model, "t": elapsed(), "segments": segs}
+    for a in auto_reveal(seg_ids, played):
+        yield {"type": "action", "seg": 1, **a, "t": elapsed()}
 
-    if start is None:
-        plan = [{"title": "The idea", "goal": f"introduce {topic}"},
-                {"title": "An example", "goal": "show a concrete example"},
-                {"title": "Recap", "goal": "summarize the lesson"}]
-        seg1 = _fallback_segment(plan[0]["title"], plan[0]["goal"], 1)
-        title = topic[:60]
-    else:
-        plan = [p if isinstance(p, dict) else {"title": str(p), "goal": ""}
-                for p in start.plan][:4]
-        if not plan:
-            plan = [{"title": "The idea", "goal": f"introduce {topic}"}]
-        # Models sometimes return a 1-entry "plan" (just the current segment);
-        # a lesson needs an arc, so pad it out and end on a recap.
-        pads = [{"title": "An example", "goal": "show a concrete example of the idea"},
-                {"title": "Recap", "goal": "summarize the lesson in one picture"}]
-        while len(plan) < 3:
-            plan.append(pads[len(plan) - 1])
-        seg1, title = start, start.title
-
-    yield {"type": "lesson", "title": title, "model": model, "t": elapsed(),
-           "segments": [{"title": "Introduction"}] + [{"title": p.get("title", "")} for p in plan]}
-    _track_board(board, seg1)
-    yield {"type": "segment", "index": 1, "title": plan[0].get("title", ""),
-           **SegmentIR(**{k: getattr(seg1, k) for k in SegmentIR.model_fields}).model_dump()}
-
-    # 2. Remaining segments, one small cache-friendly call each.
-    total = len(plan)
-    for i, seg_plan in enumerate(plan[1:], start=2):
-        yield {"type": "status", "status": f"planning segment {i}/{total}", "t": elapsed()}
-        messages = [
-            {"role": "system", "content": SEGMENT_SYSTEM},
-            {"role": "user", "content":
-                f"Lesson: {title}\nTopic: {topic}\nPlan: {_plan_text(plan)}\n"
-                f"Already on the board: {_board_summary(board)}\n"
-                f"Teach NOW segment {i} of {total}: {seg_plan.get('title', '')} "
-                f"— {seg_plan.get('goal', '')}"},
-        ]
-        seg_ir: SegmentIR | None = None
-        try:
-            for kind, val in _plan_events(model, messages, _segment_validator(board),
-                                          num_predict=700):
-                if kind == "narration":
-                    yield {"type": "narration", "index": i, "text": val, "t": elapsed()}
-                else:
-                    seg_ir = val
-        except Exception:
-            pass
-        if seg_ir is None:
-            seg_ir = _fallback_segment(seg_plan.get("title", f"Part {i}"),
-                                       seg_plan.get("goal", ""), i)
-        _track_board(board, seg_ir)
-        yield {"type": "segment", "index": i, "title": seg_plan.get("title", ""),
-               **seg_ir.model_dump()}
+    # Remaining segments (multi-segment modes): one small stream each.
+    if spec.segment_system:
+        total = len(plan)
+        plan_text = " / ".join(f"{i + 1}. {p.get('title', '')}" for i, p in enumerate(plan))
+        for i, seg_plan in enumerate(plan[1:], start=2):
+            yield {"type": "status", "status": f"planning part {i}/{total}", "t": elapsed()}
+            yield {
+                "type": "segment_start",
+                "index": i,
+                "title": seg_plan.get("title", ""),
+                "t": elapsed(),
+            }
+            for a in _panel_actions(layout, i, title, spec.panel_policy):
+                yield {"type": "action", "seg": i, **a, "t": elapsed()}
+            seg_ids, played, emitted = set(), set(), 0
+            messages = [
+                {"role": "system", "content": spec.segment_system},
+                {
+                    "role": "user",
+                    "content": f"Session: {title}\nTopic: {topic}\nPlan: {plan_text}\n"
+                    f"Already on the board: {layout.summary()}\n"
+                    f"Do NOW part {i} of {total}: {seg_plan.get('title', '')} "
+                    f"— {seg_plan.get('goal', '')}",
+                },
+            ]
+            try:
+                for a in _stream_actions(
+                    model, messages, layout, seg_ids, None, num_predict=spec.num_predict_segment
+                ):
+                    if a["kind"] == "play":
+                        played.add(a["step"].get("target"))
+                    emitted += 1
+                    yield {"type": "action", "seg": i, **a, "t": elapsed()}
+            except Exception:
+                pass
+            if emitted == 0:
+                for a in _card_actions(
+                    seg_plan.get("title", f"Part {i}"), seg_plan.get("goal", ""), i, layout
+                ):
+                    yield {"type": "action", "seg": i, **a, "t": elapsed()}
+            for a in auto_reveal(seg_ids, played):
+                yield {"type": "action", "seg": i, **a, "t": elapsed()}
     yield {"type": "done", "t": elapsed()}
 
 
+# --------------------------------------------------------------------------- #
+# CLI: event trace + the latency stats that matter (TTFA, inter-action gaps).
+# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
     import sys
-    topic = " ".join(sys.argv[1:]) or "why the sky is blue"
+
+    args = sys.argv[1:]
+    mode_arg = "learn"
+    if args and args[0] == "--mode" and len(args) > 1:
+        mode_arg, args = args[1], args[2:]
+    topic = " ".join(args) or "why the sky is blue"
     t0 = time.time()
     say = lambda *a: print(f"[{time.time() - t0:6.1f}s]", *a, flush=True)
-    for event in stream_lesson(topic):
-        if event["type"] == "segment":
-            say(f"SEGMENT {event['index']} ({event['title']}): "
-                f"objs={[o['id'] for o in event['objects']]} "
-                f"steps={[(s['animation'], s['target']) for s in event['steps']]}")
-            say(f"         say: {event['narration']}")
-        elif event["type"] == "narration":
-            say(f"VOICE  (seg {event['index']}): {event['text']}")
+    action_times: list[float] = []
+    first_llm_action = None
+    for event in stream_lesson(topic, mode=mode_arg):
+        now = time.time() - t0
+        if event["type"] == "action":
+            k = event["kind"]
+            if event.get("seg", 0) >= 1:  # LLM-generated content only
+                action_times.append(now)
+                if first_llm_action is None:
+                    first_llm_action = now
+            if k == "say":
+                say(f"  SAY({event['seg']}): {event['text']}")
+            elif k == "add":
+                o = event["object"]
+                say(
+                    f"  ADD({event['seg']}): {o['id']} [{o['type']}] at "
+                    f"[{o['position'][0]:.1f},{o['position'][1]:.1f}]"
+                )
+            elif k == "play":
+                s = event["step"]
+                say(f"  PLAY({event['seg']}): {s['animation']} {s['target']}")
+            else:
+                say(f"  {k.upper()}({event['seg']})")
         elif event["type"] == "lesson":
-            say(f"LESSON  {event['title']} — plan: "
-                f"{[s['title'] for s in event['segments']]}")
+            say(f"LESSON: {event['title']} — {[s['title'] for s in event['segments']]}")
         else:
             say(event["type"].upper(), event.get("status", ""), event.get("title", ""))
+    gaps = [b - a for a, b in zip(action_times, action_times[1:], strict=False)]
+    if gaps:
+        gaps.sort()
+        p = lambda q: gaps[min(len(gaps) - 1, int(q * len(gaps)))]
+        say(
+            f"STATS: first LLM action {first_llm_action:.1f}s | "
+            f"{len(action_times)} actions | gap p50 {p(0.5):.2f}s "
+            f"p95 {p(0.95):.2f}s max {gaps[-1]:.2f}s"
+        )

@@ -1,5 +1,6 @@
 """Trace the planner on one prompt: show the outline, then each IR attempt's
 raw output and validation error. Use to diagnose mock-fallbacks."""
+
 import json
 import sys
 
@@ -31,5 +32,9 @@ for i in range(3):
     except (json.JSONDecodeError, ValidationError) as e:
         print(f"attempt {i} ERROR: {e}\n")
         messages.append({"role": "assistant", "content": raw})
-        messages.append({"role": "user", "content":
-            f"That JSON was invalid:\n{e}\nFix ALL of these errors and return the full corrected Scene IR JSON only."})
+        messages.append(
+            {
+                "role": "user",
+                "content": f"That JSON was invalid:\n{e}\nFix ALL of these errors and return the full corrected Scene IR JSON only.",
+            }
+        )
