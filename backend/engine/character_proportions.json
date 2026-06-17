@@ -1,0 +1,12 @@
+{
+  "_source": "Meta Amateur Drawings (MIT), median over clean figures",
+  "_n_clean": 178158,
+  "_unit": "ratio of standing torso length",
+  "upper_arm": 0.402,
+  "forearm": 0.423,
+  "thigh": 0.485,
+  "shin": 0.516,
+  "shoulder_w": 0.753,
+  "hip_w": 0.448,
+  "head": 0.943
+}
