@@ -1,1 +1,57 @@
+# ---- Build / generated artifacts ----
+build/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ---- Virtual envs ----
 /.venv
+.venv/
+venv/
+env/
+
+# ---- uv ----
+# uv.lock IS committed (reproducible installs). Cache is not.
+.uv-cache/
+
+# ---- Tooling caches ----
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.coverage
+htmlcov/
+coverage.xml
+
+# ---- Node / frontend build ----
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
+# ---- Manim / rendered media (generated artifacts, never commit) ----
+media/
+backend/media/
+*.mp4
+*.mov
+*.gif
+
+# ---- Runtime asset cache (QuickDraw sketches fetched on demand) ----
+backend/assets/
+
+# ---- Secrets / local env ----
+.env
+.env.*
+!.env.example
+
+# ---- Editor / OS ----
+.idea/
+*.swp
+.DS_Store
+# Mined-from dataset: raw annotations stay out of git (derived priors are committed)
+backend/engine/assets/animateddrawings/

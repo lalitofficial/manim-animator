@@ -1,9 +1,0 @@
-# This file is used internally by FFMPEG.
-file 'file:/Users/lalitkumar/Company/DEVELOPER/manim-animator/media/videos/480p15/partial_movie_files/GeneratedScene/uncached_00000.mp4'
-file 'file:/Users/lalitkumar/Company/DEVELOPER/manim-animator/media/videos/480p15/partial_movie_files/GeneratedScene/uncached_00001.mp4'
-file 'file:/Users/lalitkumar/Company/DEVELOPER/manim-animator/media/videos/480p15/partial_movie_files/GeneratedScene/uncached_00002.mp4'
-file 'file:/Users/lalitkumar/Company/DEVELOPER/manim-animator/media/videos/480p15/partial_movie_files/GeneratedScene/uncached_00003.mp4'
-file 'file:/Users/lalitkumar/Company/DEVELOPER/manim-animator/media/videos/480p15/partial_movie_files/GeneratedScene/uncached_00004.mp4'
-file 'file:/Users/lalitkumar/Company/DEVELOPER/manim-animator/media/videos/480p15/partial_movie_files/GeneratedScene/uncached_00005.mp4'
-file 'file:/Users/lalitkumar/Company/DEVELOPER/manim-animator/media/videos/480p15/partial_movie_files/GeneratedScene/uncached_00006.mp4'
-file 'file:/Users/lalitkumar/Company/DEVELOPER/manim-animator/media/videos/480p15/partial_movie_files/GeneratedScene/uncached_00007.mp4'
