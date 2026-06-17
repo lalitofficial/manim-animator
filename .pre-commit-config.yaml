@@ -1,0 +1,42 @@
+# Runs on every commit. Install once with `make hooks` (or `uv run pre-commit install`).
+# Run across all files manually with `uv run pre-commit run --all-files`.
+minimum_pre_commit_version: "4.0.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.md$
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=1024"] # block accidental mp4/model commits
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Ruff via the project's own pinned version (uv), so hooks and `make lint`
+  # never disagree about formatting. Single source of truth = pyproject + uv.lock.
+  - repo: local
+    hooks:
+      - id: ruff-lint
+        name: ruff (lint + autofix)
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      # Biome for the board frontend (JS/HTML), via the repo's config.
+      - id: biome-check
+        name: biome check (board/)
+        entry: npx --yes @biomejs/biome check --write --no-errors-on-unmatched
+        language: system
+        files: ^board/.*\.(js|html)$
+        pass_filenames: true

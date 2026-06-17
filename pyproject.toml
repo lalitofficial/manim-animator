@@ -1,0 +1,92 @@
+[project]
+name = "manim-animator"
+version = "0.1.0"
+description = "Text -> IR -> pixels: offline Manim mp4 + a realtime live teaching board, planned by a local Ollama model."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "manim>=0.18",
+    "fastapi[standard]>=0.115",
+    "uvicorn>=0.30",
+    # The planner talks to Ollama over its local HTTP API using the stdlib —
+    # no client dependency needed.
+    "kiwisolver>=1.5.0",
+    "svgelements>=1.9.6",
+]
+
+[dependency-groups]
+# Dev-only tools. Installed by `uv sync`, excluded from `uv sync --no-dev`.
+dev = [
+    "ruff>=0.9",
+    "pyright>=1.1.390",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",        # FastAPI TestClient transport
+    "pre-commit>=4.0",
+]
+
+[tool.uv]
+# This is an application, not a distributable library — don't try to build/install
+# the project itself into the environment.
+package = false
+
+# ----------------------------------------------------------------------------
+# Ruff: linter + formatter (replaces black, isort, flake8, pyupgrade).
+# ----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Source lives under backend/ and tests/ — both are import roots.
+src = ["backend", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes (unused imports/vars, undefined names)
+    "I",        # isort (import ordering)
+    "UP",       # pyupgrade (modern syntax)
+    "B",        # flake8-bugbear (likely bugs)
+    "SIM",      # flake8-simplify
+    "C4",       # comprehensions
+]
+ignore = [
+    "E501",     # line length is handled by the formatter, not the linter
+    "B008",     # FastAPI uses function calls in argument defaults (Depends, etc.)
+    # Relaxed for this codebase's deliberate style — re-enable per-fix if desired:
+    "E731",     # assigning short lambdas (used as local helpers) is intentional here
+    "E741",     # single-letter math vars (l, etc.) read fine in geometry code
+    "SIM108",   # some if/else blocks are clearer than the equivalent ternary
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B", "SIM"]   # tests favor explicitness over cleverness
+
+[tool.ruff.format]
+quote-style = "double"
+skip-magic-trailing-comma = false
+
+# ----------------------------------------------------------------------------
+# Pyright: static type checking. "basic" is a pragmatic starting point for a
+# partially-typed codebase — tighten to "standard"/"strict" as coverage grows.
+# ----------------------------------------------------------------------------
+[tool.pyright]
+include = ["backend", "tests"]
+exclude = ["**/__pycache__", "**/media", "**/assets", ".venv"]
+extraPaths = ["backend"]          # modules import each other flat (import sketches)
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+reportMissingImports = true
+venvPath = "."
+venv = ".venv"
+
+# ----------------------------------------------------------------------------
+# Pytest
+# ----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+# backend/ on the path so `import planner` etc. resolve the same way the app does
+# (uvicorn runs with --app-dir backend).
+pythonpath = ["backend"]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning"]
