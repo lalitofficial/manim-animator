@@ -203,8 +203,15 @@ def _character(thing: Thing) -> Drawable | None:
         return None
     ga = thing.geometry_attrs
     # The CONCEPT selects the cast ROLE (teacher/scientist/…); presenter/guide → default.
+    # turn/facing/head overrides (e.g. the host LOOKING toward a target) ride in geometry_attrs.
+    look = {k: float(ga[k]) for k in ("turn", "facing", "head") if k in ga}
+    pose = (
+        character.posed(str(ga.get("pose", "idle")), **look)
+        if look
+        else str(ga.get("pose", "idle"))
+    )
     strokes = character.build(
-        pose=str(ga.get("pose", "idle")),
+        pose=pose,
         expression=str(ga.get("expression", "happy")),
         theme=ga.get("theme"),
         character=str(ga.get("role") or thing.concept),

@@ -276,6 +276,12 @@ def _resolve_pose(pose) -> dict:
     return POSE_LIBRARY.get(pose if pose in POSE_LIBRARY else "idle", POSE_LIBRARY["idle"])
 
 
+def posed(name: str, **overrides: float) -> dict:
+    """A library pose with head `turn`/`facing`/`head` overridden — e.g. to make the rig
+    LOOK toward a target (`posed("point", turn=0.6)` turns the head to the right)."""
+    return {**_resolve_pose(name), **{k: float(v) for k, v in overrides.items()}}
+
+
 # --------------------------------------------------------------------------- #
 # Expressions — eyes, brows, mouth.
 # --------------------------------------------------------------------------- #

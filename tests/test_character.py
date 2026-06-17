@@ -70,6 +70,15 @@ def test_new_clips_and_head_tilt():
     assert character.interpolate("idle", "agree", 0.5).get("head", 0.0) < 0  # bowed mid-nod
 
 
+def test_posed_overrides_head_for_look_at():
+    # posed() overrides the head turn so the rig can LOOK toward a target
+    assert character.posed("point", turn=0.7)["turn"] == 0.7
+    assert character.posed("idle", facing=-1.0)["facing"] == -1.0
+    assert character.build(character.posed("idle", turn=0.0)) != character.build(
+        character.posed("idle", turn=0.7)
+    )  # turning the head changes the rendered rig
+
+
 def test_side_profile_is_a_distinct_silhouette():
     # a full side profile (facing ±1): profile head (one eye + nose wedge) + far arm hidden
     front = character.build("idle")

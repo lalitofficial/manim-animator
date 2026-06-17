@@ -435,11 +435,14 @@ def compile_plan(
                     if op is not None:
                         yield {"type": "connector", "op": op_to_dict(op)}
                 elif a.verb in ("point", "look") and a.actor in chars and a.actor in pmap:
-                    # Character ACTS: re-pose the rig (a real gesture), emphasize the target.
+                    # Character ACTS: re-pose the rig (a real gesture) AND turn its head toward
+                    # the target's position (it looks at what it points to), then emphasize it.
                     pose = "point" if a.verb == "point" else "think"
-                    t2 = replace(
-                        tmap[a.actor], geometry_attrs={**tmap[a.actor].geometry_attrs, "pose": pose}
-                    )
+                    ga2 = {**tmap[a.actor].geometry_attrs, "pose": pose}
+                    if a.target in pmap:  # head turns toward the target's side of the board
+                        dx = pmap[a.target].x - pmap[a.actor].x
+                        ga2["turn"] = round(max(-0.8, min(0.8, dx / 4.0)), 2)
+                    t2 = replace(tmap[a.actor], geometry_attrs=ga2)
                     d2 = measure(t2, generate=generate, style=style)
                     op = paint(
                         replace(t2, extent=d2.extent),
