@@ -277,4 +277,28 @@ def test_parse_plan_drops_unknown_verbs():
 
 
 def test_verb_vocabulary_is_closed():
-    assert {"enter", "rise", "fall", "pulse", "point", "transform", "connect"} <= VERBS
+    assert {"rise", "fall", "pulse", "point", "transform", "connect"} <= VERBS
+    assert "enter" not in VERBS  # entry is the draw reveal, not a motion verb
+
+
+def test_authored_cast_members_do_not_collapse_to_one_role():
+    """A scene can stage its OWN distinct cast — two authored characters must render as
+    two different rigs (the per-scene recast applies to the injected host only)."""
+    lp = LessonPlan(
+        "T",
+        (
+            ScenePlan(
+                "s",
+                setting="a farm",
+                entities=(
+                    Entity("a", "farmer", "character", appearance={"size": 2.5}),
+                    Entity("b", "scientist", "character", appearance={"size": 2.5}),
+                ),
+                shots=(Shot(enter=("a", "b"), say="hi"),),
+            ),
+        ),
+    )
+    evs = list(compile_plan(lp, direct("farm", style="cartoon"), BOARD))
+    a = next(e for e in evs if e["type"] == "draw" and e["op"]["id"] == "a")["op"]["strokes"]
+    b = next(e for e in evs if e["type"] == "draw" and e["op"]["id"] == "b")["op"]["strokes"]
+    assert a != b  # farmer (straw hat) ≠ scientist (lab coat) — no collapse

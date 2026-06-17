@@ -42,7 +42,6 @@ from engine.serialize import op_to_dict
 # Each verb is one parameterized transform-over-time the renderer applies to ANY actor.
 VERBS = frozenset(
     {
-        "enter",
         "exit",
         "rise",
         "fall",
@@ -182,7 +181,7 @@ def _infer_roles(ents: list[Entity], shots: list[Shot], title: str) -> list[Enti
     title_words = {w for w in title.lower().replace("-", " ").split() if len(w) > 2}
 
     props = [e for e in ents if e.kind == "prop" and e.role is None]
-    particles = {e.id for e in props if (e.concept or "").lower().split()[0] in _PARTICLE}
+    particles = {e.id for e in props if ((e.concept or "").lower().split() or [""])[0] in _PARTICLE}
     candidates = [e for e in props if e.id not in particles]
     hero_id = None
     if candidates:
@@ -355,22 +354,20 @@ def compile_plan(
             yield _camera_full(board)
 
         # The director adds a host to any cartoon scene without one — emotion sets its
-        # face, the scene's purpose sets its body language.
+        # face, the scene's purpose sets its body language. We CAST that injected host per
+        # scene (lab->scientist, field->farmer) from the scene's setting+narration, so a
+        # multi-scene story changes who hosts. AUTHORED characters keep their own concepts
+        # (a scene can stage its own distinct cast — they must NOT all collapse to one role).
         entities = list(scene.entities)
         if style == palette.CARTOON and not any(e.kind == "character" for e in entities):
-            entities.insert(0, _host_entity(spec, emotion, purpose))
-        # PER-SCENE casting: recast every generic character (host/narrator) to a role that fits
-        # THIS scene's setting+narration — so a multi-scene story changes who's on stage.
-        if style == palette.CARTOON:
             scene_topic = (
                 scene.setting or " ".join(s.say for s in scene.shots if s.say) or lesson.title
             )
-            entities = [
-                replace(e, concept=character.cast_concept(e.concept, scene_topic, spec.mode))
-                if e.kind == "character"
-                else e
-                for e in entities
-            ]
+            host = _host_entity(spec, emotion, purpose)
+            host = replace(
+                host, concept=character.cast_concept(host.concept, scene_topic, spec.mode)
+            )
+            entities.insert(0, host)
         chars = {e.id for e in entities if e.kind == "character"}
 
         # Measure + STAGE every entity in the scene (cast + props) as one composition.
@@ -581,7 +578,8 @@ def lift_beats(beats: list[Beat], title: str = "lesson", style: str = "cartoon")
         nonlocal cur_enter, cur_actions, cur_say
         if cur_enter or cur_actions or cur_say:
             shots.append(Shot(enter=tuple(cur_enter), actions=tuple(cur_actions), say=cur_say))
-            cur_enter, cur_actions, cur_say = [], [], []
+            cur_enter, cur_actions = [], []
+            cur_say = None  # keep types clean (cur_say is str | None, not a list)
 
     def flush_scene():
         nonlocal ents, shots
