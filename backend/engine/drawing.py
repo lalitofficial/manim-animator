@@ -33,7 +33,7 @@ _ALIASES = {
 }
 
 _cache: dict[tuple, Drawable] = {}
-_negative: set[str] = set()  # concepts known to fall through to backstop (don't re-call)
+_negative: set[tuple] = set()  # cache keys known to fall through to backstop (don't re-call)
 _provider: generators.SvgProvider | None = None
 _sketch_lookup = None  # rung 2: concept -> QuickDraw sketch dict (cache-only)
 _compose = icons.compose  # composable-icon resolver (tests can swap it out)
@@ -149,30 +149,30 @@ def measure(thing: Thing, generate: bool = True, style: str = "whiteboard") -> D
         _cache[k] = sketch
         return sketch
 
-    c = _norm(thing.concept)
-    if generate and c not in _negative:
+    if generate and k not in _negative:  # negative cache forks per (concept, geometry, STYLE)
         gen = _try_generate(thing)
         if gen is not None:
             _cache[k] = gen  # provisional cache
             return gen
-        _negative.add(c)  # don't re-call the provider for a known miss
+        _negative.add(k)  # don't re-call the provider for a known miss (this style)
 
     return _backstop(thing.concept)  # placeholder — intentionally not cached
 
 
-def pregenerate(thing: Thing) -> bool:
-    """Warm the cache for a long-tail concept (the async step behind the
-    placeholder-then-swap). Returns True if a real (rung 3) drawable was cached."""
-    k = _key(thing)
+def pregenerate(thing: Thing, style: str = "whiteboard") -> bool:
+    """Warm the cache for a long-tail concept (the async step behind the placeholder-then-
+    swap). Returns True if a real (rung 3) drawable was cached. `style` must match the render
+    style — the cache key forks on it, so warming whiteboard doesn't satisfy a cartoon render."""
+    k = _key(thing, style)
     existing = _cache.get(k)
     if existing is not None and existing.rung != 6:
         return True
     gen = _try_generate(thing)
     if gen is not None:
         _cache[k] = gen
-        _negative.discard(_norm(thing.concept))
+        _negative.discard(k)
         return True
-    _negative.add(_norm(thing.concept))
+    _negative.add(k)
     return False
 
 
@@ -364,7 +364,7 @@ def paint(
     strokes mono (unchanged); cartoon fills closed shapes + outlines them via the
     palette. Color is applied HERE, not in measure(), so geometry stays cacheable.
     """
-    d = drawable or measure(thing)
+    d = drawable or measure(thing, style=style)
     board_strokes = g.transform(d.strokes, placement.x, placement.y, placement.scale)
     board_strokes = palette.apply(board_strokes, style, thing.concept)
     cartoon = style == palette.CARTOON
@@ -373,7 +373,7 @@ def paint(
     # from the concept (characters bob/rise, sky props float), whiteboard stays still.
     entrance = pa.get("entrance") or (palette.entrance_for(thing.concept) if cartoon else "draw")
     ambient = pa.get("ambient") or (palette.ambient_for(thing.concept) if cartoon else "")
-    is_char = cartoon and ambient == "bob"  # characters paint on top (z=3)
+    is_char = cartoon and d.source == "character"  # the rig paints on top (z=3), any role
     return DrawOp(
         thing_id=thing.id,
         kind="draw",
