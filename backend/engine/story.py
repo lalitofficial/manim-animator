@@ -978,6 +978,12 @@ def _default_provider() -> StoryProvider:
 
     r = models.resolve_story()
     if r.provider == "ollama":
+        # EXPERIMENT (opt-in): generate the lesson scene-by-scene (autoregressively) instead of
+        # in one big call — scales to long lessons a 7B model can't emit in a single shot.
+        if os.environ.get("STORY_METHOD", "").strip().lower() in ("ar", "autoregressive"):
+            from engine.autostory import AutoregressiveStory
+
+            return AutoregressiveStory(model=r.model)
         return OllamaStory(model=r.model)
     if r.provider == "gemini":
         return GeminiStory()
