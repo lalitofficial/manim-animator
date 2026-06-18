@@ -265,6 +265,76 @@ ICON_RECIPES: dict[str, dict] = {
             },
         ]
     },
+    "seed": {
+        "parts": [
+            {"prim": "ellipse", "rx": 0.36, "ry": 0.55, "fill": "#7a5230", "stroke": "#4e3318"},
+            {"prim": "line", "at": [-0.1, 0.18], "to": [0.18, -0.32], "stroke": "#a07a4e"},
+        ]
+    },
+    "soil": {
+        "parts": [
+            {
+                "prim": "polyline",
+                "points": [
+                    [-0.95, -0.55],
+                    [-0.55, 0.1],
+                    [-0.15, 0.3],
+                    [0.2, 0.12],
+                    [0.55, 0.32],
+                    [0.95, -0.2],
+                    [0.95, -0.6],
+                    [-0.95, -0.6],
+                ],
+                "closed": True,
+                "fill": "#6b4a2b",
+                "stroke": "#4a3320",
+            },
+        ]
+    },
+    "sprout": {
+        "parts": [
+            {"prim": "line", "at": [0.0, -0.55], "to": [0.0, 0.95], "stroke": "#3f9143"},
+            {
+                "prim": "ellipse",
+                "at": [-0.28, 0.3],
+                "rx": 0.32,
+                "ry": 0.15,
+                "rot": 35,
+                "fill": "#5bbf5e",
+                "stroke": "#3f9143",
+            },
+            {
+                "prim": "ellipse",
+                "at": [0.28, 0.3],
+                "rx": 0.32,
+                "ry": 0.15,
+                "rot": -35,
+                "fill": "#5bbf5e",
+                "stroke": "#3f9143",
+            },
+        ]
+    },
+    "stem": {
+        "parts": [
+            {
+                "prim": "rounded_rect",
+                "w": 0.18,
+                "h": 1.5,
+                "r": 0.08,
+                "fill": "#4a9a4e",
+                "stroke": "#357a39",
+            },
+        ]
+    },
+    "root": {
+        "parts": [
+            {"prim": "line", "at": [0.0, 0.7], "to": [0.0, -1.3], "stroke": "#7a5230"},
+            {"prim": "line", "at": [0.0, 0.1], "to": [-0.4, -0.7], "stroke": "#7a5230"},
+            {"prim": "line", "at": [0.0, 0.1], "to": [0.4, -0.7], "stroke": "#7a5230"},
+            {"prim": "line", "at": [0.0, 0.4], "to": [-0.25, -0.5], "stroke": "#7a5230"},
+            {"prim": "line", "at": [0.0, 0.4], "to": [0.25, -0.5], "stroke": "#7a5230"},
+        ]
+    },
     "molecule": {
         "parts": [
             {
@@ -326,6 +396,16 @@ ALIASES = {
     "evaporation": "water",
     "condensation": "cloud",
     "precipitation": "rain",
+    "dirt": "soil",
+    "ground": "soil",
+    "shoot": "sprout",
+    "sapling": "sprout",
+    "seedling": "sprout",
+    "leaves": "leaf",
+    "leaflet": "leaf",
+    "stalk": "stem",
+    "twig": "stem",
+    "branch": "stem",
     "flower blossom": "flower",
     "plant": "tree",
 }

@@ -21,6 +21,7 @@ import copy
 import json
 import os
 import urllib.request
+from dataclasses import replace
 
 from engine import story
 from engine.contracts import Beat, clear
@@ -48,6 +49,23 @@ def _arc_guidance(i: int, n: int) -> str:
     return "Start bringing the threads together toward the conclusion."
 
 
+def _simplify_concept(concept: str, style: str = "cartoon") -> str:
+    """Reduce a verbose model concept to the SHORT drawable noun in it ('big tree with branches and
+    leaves' -> 'tree') so it renders as an icon, not a labeled box. Forward scan (the head noun
+    leads, after adjectives); keep the phrase if nothing in it draws as an icon."""
+    from engine.contracts import Extent, Thing
+    from engine.drawing import measure
+
+    for raw in (concept or "").lower().replace("-", " ").split():
+        w = raw.strip(".,!?;:'\"()")
+        if (
+            len(w) > 2
+            and measure(Thing("p", w, Extent(1, 1)), generate=False, style=style).source != "box"
+        ):
+            return w
+    return concept
+
+
 class AutoregressiveStory:
     """Generate a lesson scene-by-scene, each scene conditioned on the story so far."""
 
@@ -71,6 +89,8 @@ class AutoregressiveStory:
             scene: list[Beat] = []
             for b in self._scene(spec, i, n, transcript, concepts):
                 if b.kind == "show":
+                    if b.concept:  # 'big tree with branches' -> 'tree' (an icon, not a labeled box)
+                        b = replace(b, concept=_simplify_concept(b.concept, spec.style))
                     keys = {(b.entity or "").lower(), (b.concept or "").strip().lower()} - {""}
                     if keys & seen:
                         continue  # the same thing again (by id OR concept) → drop, don't redraw
@@ -114,7 +134,9 @@ class AutoregressiveStory:
             "NOT a watermelon or any random item.)\n"
             "- Introduce 1-3 NEW drawable concepts THIS scene; reference already-drawn ones but do "
             "NOT re-show them.\n"
-            f"- every concept is a CONCRETE, DRAWABLE noun; prefer ones with an icon here:\n  {vocab}\n"
+            "- each `concept` is ONE plain noun naming the thing — 'seed', 'soil', 'root', 'tree', "
+            "'sun', 'cloud'. NEVER a description: 'small brown nut-like object' is WRONG — write "
+            f"'seed'. Prefer a word from this icon list when you can:\n  {vocab}\n"
             "- 2-4 say lines; in each, wrap a shown concept's word in [brackets] (its id/concept).\n"
             "- CONTINUE coherently from THE LESSON SO FAR — advance it, never restart or repeat.\n"
             "Output ONLY the JSON object."
