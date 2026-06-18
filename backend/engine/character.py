@@ -1132,6 +1132,43 @@ def build(
 
 
 # --------------------------------------------------------------------------- #
+# Mouth SLOT — viseme shapes for lip-sync (Spine model; ROADMAP §5, NOTEBOOK O6).
+# The body rig stays whole; the mouth is a separate swappable attachment the client
+# overlays on the host's face and flips through during speech (a mouth-cue track).
+# --------------------------------------------------------------------------- #
+MOUTH_SHAPES = ("rest", "closed", "narrow", "mid", "wide", "round")
+
+
+def mouth_shapes(theme: str | None = None, character: str | None = None) -> dict[str, list[Stroke]]:
+    """The viseme mouth shapes, in the rig's LOCAL space at the mouth position, keyed by name.
+
+    paint() transforms them to the board along with the host (same local frame), so the client
+    swaps among them during speech without re-rendering the body. `rest`/`closed` are ink lines
+    (lips together); the open visemes are filled with the palette's mouth color. The 6 names map
+    from Rhubarb/Oculus visemes: rest/closed←sil,P,B,M · narrow←teeth/EE · mid←EH/AE · wide←AA ·
+    round←OO/W (docs/ROADMAP-story-voice.md §5)."""
+    pal = _role_palette(character, theme)
+    ink, mcol = pal["ink"], pal["mouth"]
+    hx, hy = _HEAD_C
+    my = hy - 0.15  # the mouth's local y (matches _face)
+
+    def line(half: float) -> list[Stroke]:
+        return [Stroke(((hx - half, my), (hx + half, my)), closed=False, color=ink)]
+
+    def open_(rx: float, ry: float) -> list[Stroke]:
+        return [_translate(s, (hx, my)) for s in _fill([g.ellipse(rx, ry)], mcol, ink)]
+
+    return {
+        "rest": line(0.09),
+        "closed": line(0.07),
+        "narrow": open_(0.085, 0.022),
+        "mid": open_(0.07, 0.05),
+        "wide": open_(0.07, 0.085),
+        "round": [_translate(s, (hx, my)) for s in _fill([g.circle(0.045)], mcol, ink)],
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Motion — interpolate between poses (shortest angular path) and synthesize clips.
 # This is what makes the rig ACT instead of holding one frame.
 # --------------------------------------------------------------------------- #

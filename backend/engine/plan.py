@@ -117,6 +117,23 @@ def _host_clip_frames(thing: Thing, p, d: Drawable, style: str, scene, clip: str
     return frames
 
 
+def _host_mouths(thing: Thing, p, d: Drawable, style: str, scene) -> dict:
+    """Render the host's viseme mouth shapes (the mouth SLOT) to placed+painted board strokes,
+    so the board can swap them during speech for lip-sync (Phase 4). Same paint transform as the
+    body, so each shape lands exactly on the host's mouth."""
+    ga = thing.geometry_attrs
+    shapes = character.mouth_shapes(
+        theme=ga.get("theme"), character=str(ga.get("role") or thing.concept)
+    )
+    out = {}
+    for name, strokes in shapes.items():
+        fop = paint(
+            thing, p, Drawable(tuple(strokes), d.extent, 1, "character"), style=style, scene=scene
+        )
+        out[name] = op_to_dict(fop)["strokes"]
+    return out
+
+
 # Semantic SCALE by role — the director's visual hierarchy. The SAME concept reads as a
 # hero (big, central) or a particle (small) depending on its role in the scene, which
 # fixes "droplet-as-main-object vs droplet-as-particle". The layout preserves the ratio.
@@ -460,6 +477,8 @@ def compile_plan(
                             ev["op"]["idle"] = _host_clip_frames(  # loop) instead of freezing
                                 tmap[eid], p, d, style, scene_name, "alive"
                             )
+                    # the mouth SLOT: viseme shapes the board swaps during speech (lip-sync)
+                    ev["op"]["mouths"] = _host_mouths(tmap[eid], p, d, style, scene_name)
                 yield ev
             if shot.say:
                 say_ev: dict = {"type": "say", "text": shot.say}
