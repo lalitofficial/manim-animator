@@ -344,4 +344,105 @@ export async function play(svg, events, onEvent, signal) {
   }
 }
 
+// The master-clock SCHEDULER (Phase 2b): play a choreographed Timeline (timeline.to_dict).
+// The SPINE (entries with at==="" — say + sequential draws) plays exactly like play() above, so a
+// degenerate (un-choreographed) timeline is identical to today. A choreographed entry (at==="m:x")
+// fires DURING its owning say at the spoken word's proportional moment — draw-while-talking.
+export async function playTimeline(svg, timeline, onEvent, signal) {
+  let pacing = { draw_speed: 1, say_dwell: 1 };
+  let toPx = makeToPx(7, 4);
+  let halfW = 7;
+  let halfH = 4;
+  let cartoon = false;
+  let defs = clearBoard(svg);
+  let camSeq = 0;
+
+  const meta = timeline.meta || {};
+  onEvent?.({ type: 'start', ...meta });
+  if (meta.board) {
+    pacing = meta.pacing || pacing;
+    halfW = meta.board.w / 2;
+    halfH = meta.board.h / 2;
+    toPx = makeToPx(halfW, halfH);
+    cartoon = meta.style === 'cartoon';
+    svg.style.background = cartoon ? '#eaf3fb' : '';
+    svg.setAttribute('viewBox', `0 0 ${meta.board.w * PX} ${meta.board.h * PX}`);
+    defs = clearBoard(svg);
+    camSeq++;
+  }
+
+  const sayMs = (text) =>
+    Math.min(1500, Math.max(600, (text.length / SPEECH_CPS) * 1000)) * pacing.say_dwell;
+
+  // Fire-and-continue for camera/action; returns a Promise for the blocking draw/connector/clear.
+  const dispatch = (ev) => {
+    onEvent?.(ev);
+    if (ev.type === 'background') {
+      drawBackground(svg, defs, ev, halfW, halfH);
+      return null;
+    }
+    if (ev.type === 'camera') {
+      camSeq++;
+      const my = camSeq;
+      animateCamera(svg, ev, ev.ms, halfW, halfH, () => my === camSeq && !signal?.aborted);
+      return null;
+    }
+    if (ev.type === 'action') {
+      applyAction(svg, ev);
+      return null;
+    }
+    if (ev.type === 'draw' || ev.type === 'connector') {
+      return drawOp(svg, defs, ev.op, toPx, pacing, cartoon, signal);
+    }
+    if (ev.type === 'clear') {
+      return (async () => {
+        await sleep(750, signal);
+        defs = clearBoard(svg);
+        camSeq++;
+      })();
+    }
+    return null;
+  };
+
+  const markByName = {};
+  for (const m of timeline.markers || []) {
+    markByName[m.name] = m;
+  }
+  const anchoredBySay = {};
+  for (const e of timeline.entries || []) {
+    const m = e.at ? markByName[e.at] : null;
+    if (m && m.entry) {
+      if (!anchoredBySay[m.entry]) {
+        anchoredBySay[m.entry] = [];
+      }
+      anchoredBySay[m.entry].push({ e, m });
+    }
+  }
+
+  for (const e of timeline.entries || []) {
+    if (signal?.aborted) throw new Aborted();
+    if (e.at) {
+      continue; // anchored entries are fired by their owning say
+    }
+    const ev = { type: e.kind, ...e.payload };
+    if (e.kind === 'say') {
+      onEvent?.(ev);
+      speak(ev.text || '');
+      const durMs = sayMs(ev.text || '');
+      const tlen = Math.max(1, (ev.text || '').length);
+      for (const { e: ae, m } of anchoredBySay[e.id] || []) {
+        const at = Math.round(Math.min(0.92, (m.char_start || 0) / tlen) * durMs);
+        setTimeout(() => {
+          if (!signal?.aborted) dispatch({ type: ae.kind, ...ae.payload });
+        }, at);
+      }
+      await sleep(durMs, signal);
+    } else {
+      const p = dispatch(ev);
+      if (p) await p;
+    }
+  }
+  onEvent?.({ type: 'done', summary: meta.done });
+}
+
 export { Aborted };

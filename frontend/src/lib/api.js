@@ -27,6 +27,9 @@ export const getStatus = () => getJSON('/api/engine/status');
 
 export const getLesson = (params) => getJSON(`/api/engine/lesson?${qs(params)}`);
 
+// The CHOREOGRAPHED timeline for the master-clock scheduler (Phase 2b) — draw-while-talking.
+export const getTimeline = (params) => getJSON(`/api/engine/timeline?${qs(params)}`);
+
 // Bring-your-own-story: animate a pasted storyboard (no model call).
 export const animate = (body) => postJSON('/api/engine/animate', body);
 

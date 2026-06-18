@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import { getStatus, getLesson, animate, getScriptPrompt } from './lib/api.js';
-  import { play, clearBoard, Aborted } from './lib/board.js';
+  import { getStatus, getTimeline, animate, getScriptPrompt } from './lib/api.js';
+  import { play, playTimeline, clearBoard, Aborted } from './lib/board.js';
 
   const MODES = ['learn', 'story', 'draw', 'explain'];
   const AUD = [['child', 'kid'], ['general', 'general'], ['expert', 'expert']];
@@ -55,7 +55,13 @@
       if (signal.aborted) return;
       spec = data.spec;
       caption = '';
-      await play(svgEl, data.events, onEvent, signal);
+      // The teach path ships a choreographed timeline (master-clock scheduler); the bring-your-own
+      // /animate path still ships a flat event list (the legacy queue). Branch on the payload.
+      if (data.timeline) {
+        await playTimeline(svgEl, data.timeline, onEvent, signal);
+      } else {
+        await play(svgEl, data.events, onEvent, signal);
+      }
     } catch (e) {
       if (!(e instanceof Aborted)) {
         error = e.message;
@@ -66,7 +72,7 @@
     }
   }
 
-  const teach = () => run(() => getLesson({ topic, mode, audience, style, depth, tone, energy }));
+  const teach = () => run(() => getTimeline({ topic, mode, audience, style, depth, tone, energy }));
 
   // Dispatch the active input: a topic (local model) or a pasted storyboard (your model).
   function go() {
