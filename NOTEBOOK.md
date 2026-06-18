@@ -827,3 +827,20 @@ until filled; `char_start/char_end` are the separate word-timing offsets). (3) *
 the code:** bounded overlap isn't expressible yet — documented in `resolve_schedule` as the Phase-3
 `at`-grammar extension, not silently missing. *The two renderers still diverge (board/engine.js clear=800
 + post-say dwell; Studio board.js clear=750, no dwell) — Phase 2b must unify them on this one IR (L9).*
+
+**O8. The voice/lip-sync half — built ADDITIVELY because the frontend can't be machine-verified here
+(autonomous run, 2026-06-18).** Phases 2b–5a shipped end-to-end: the master-clock scheduler (`playTimeline`
+in both renderers), the choreographer wired in (`stream.timeline_lesson`), the **mouth-slot viseme rig**
+(`character.mouth_shapes` → painted onto the host op as `op.mouths`), **char-estimated Web-Speech lip-sync**
+(the bootstrap — no audio to align to), and the **`VOICE_PROVIDER`** surface (free-local-first, like
+`STORY_PROVIDER`). End-to-end smoke through real Ollama produced the intended structure (concept draws
+anchored to their word's marker, host points, 6 visemes). *Process lessons under "build all phases, no
+verification loop":* (1) **make every unverifiable-frontend change ADDITIVE + reversible** — `play()` stayed
+as a shared `dispatch()`, the mouth is an OVERLAY on the resting face (not a rewrite of `_face`), `op.mouths`
+is an optional key — so a runtime bug is isolated and the old path A/B-able. (2) **Compile is the cheap
+machine gate when runtime isn't reachable** — `vite build` + Biome caught the JS errors I couldn't catch by
+running; lean on them. (3) **Push the intelligence backend (testable), keep the frontend a thin player** —
+the scheduler/choreographer/markers are Python-tested; the board just resolves anchors + swaps a mouth, so
+most of the risk surface IS verified. (4) **Open-loop timing is the known debt** — draw-while-talking + the
+mouth ride the say's *estimated* duration (Web Speech gives no real timing); precise alignment is the
+deferred Phase-5 local-TTS word-boundary work, not a bug. Diagnosis guide: roadmap §12.

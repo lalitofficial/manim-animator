@@ -387,3 +387,52 @@ synthesized method = *our engine + Motion Canvas timeline ideas + Outlines/Ollam
 | **Inochi2D / Live2D** | BSD-2 / proprietary | Future | mesh/parameter puppet model for expressive heads (soft face turns, eyes, hair) — later, likely overkill now. |
 | **ToonCrafter** | Apache-2.0 (weights: verify) | Offline/research | cartoon keyframe interpolation for *offline polish*, not the live path. |
 | **LiveSVG** | research paper | Future idea | editable-SVG-from-diffusion target — research, not a tool yet. |
+
+---
+
+## 12. Build log + diagnosis (autonomous run, 2026-06-18)
+
+Built and committed on `cartoon` (newest first):
+
+```
+54094d2 feat(models): VOICE_PROVIDER config surface — free-local-first voice (5a)
+01a3dfa feat(board): viseme lip-sync — host mouth moves with speech (4b)
+14c59ef feat(character): mouth-slot viseme rig for lip-sync (4a)
+de594d9 feat(studio): scheduler mirror — Studio plays the choreographed timeline (2b, L9)
+797bbce feat(board): master-clock scheduler plays the choreographed timeline (2b)
+699ccf1 feat(engine): deterministic choreographer — draw-while-talking (3)
+7fcff01 feat(engine): Timeline IR + events->timeline adapter (2a)
+ff323bb feat(story): Script V0 — minItems floor + [concept] narration markers (1)
+d7f8b0c docs(story-voice): roadmap + notebook learnings (O1-O7)
+```
+
+**Verified (machine):** backend `376 tests` green + ruff clean; Studio `vite build` green; `board/engine.js`
+Biome-clean; and an **end-to-end smoke test through real Ollama** — `stream.timeline_lesson("photosynthesis")`
+yields a choreographed timeline: concept draws anchored to `m:sun/m:leaf/m:water/m:soil`, host `point`s at
+each, and the host op carries all 6 viseme mouths.
+
+**NOT verified (needs a browser — diagnose here):** the frontend *runtime*. Everything visual now flows
+through the new `playTimeline` scheduler in BOTH `board/engine.js` (route `/`) and `frontend/src/lib/board.js`
+(Studio). To diagnose: `make dev` → http://127.0.0.1:8000/ , pick cartoon, type a topic, Teach (Ollama running
+for real `[concept]` markers). **Expect:** template lessons play as before (anti-rewrite); marker lessons reveal
+each concept *as its word is spoken*, the host points at it, and its mouth moves during narration.
+
+**Per-phase risk to check if something's off:**
+- *Scheduler (2b):* if the board is blank/stuck, suspect `playTimeline` — the spine is `at===""` entries with
+  self-correcting awaits; anchored entries fire via `setTimeout` during their say. `/api/engine/timeline`
+  returns the timeline; `/api/engine/lesson` (events) is still there to A/B against.
+- *Draw-while-talking (3):* timing uses the say's *estimated* duration × `char_start/text_len` (open-loop) — if
+  Web-Speech TTS is much longer/shorter than the estimate, draws bunch early or lag. Phase-5 word boundaries fix it.
+- *Lip-sync (4b):* mouth is an overlay `<g class="mouth-slot">` on the host group, swapped from `op.mouths`;
+  visemes are *char-estimated* (coarse by design). If the mouth is mispositioned, check the paint transform of
+  `op.mouths` vs the host body. If absent, the host op lacked `mouths` (only cinematic cartoon hosts get them).
+- *Two renderers (L9):* `board/engine.js` (clear 800 + post-say dwell) and Studio `board.js` (clear 750, no
+  dwell, fixed say-estimate, abort signal) intentionally differ — verify BOTH.
+
+**Remaining (not built — blocked/deferred):**
+- *5b voice quality:* local Kokoro/HeadTTS audio-gen + word/viseme timestamps → resolve marker `t` + drive
+  mouths precisely. Needs the model installed; `VOICE_PROVIDER=kokoro|headtts` slot + `resolve_voice()` are ready.
+- *6 camera-follows-concept:* anchor a camera focus to each concept marker (needs the concept's placement; cleanest
+  at compile_plan / from the draw op bbox). Risk: too much motion — gate it.
+- *7 streaming:* per-scene timelines over SSE (the deferred optimization); the scheduler already plays a whole
+  timeline, so this is a delivery change.
