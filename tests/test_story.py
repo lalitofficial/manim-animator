@@ -79,6 +79,25 @@ def test_director_spec_drives_scene_count():
     assert sum(1 for b in two if b.kind == "clear") == 1  # 2 scenes -> 1 break
 
 
+def test_length_drives_a_long_multi_scene_story():
+    from engine.director import DirectorSpec
+
+    def n_scenes(length):
+        return len(
+            story.tell_plan(DirectorSpec("the water cycle", mode="story", length=length)).scenes
+        )
+
+    assert n_scenes("2min") == 3  # backward-compatible default
+    assert n_scenes("5min") == 8
+    assert n_scenes("10min") == 16  # a real long lesson — far past the old 5-scene cap
+    # a long story still READS as a story: curious open, joyful close (the stretched arc)
+    long_story = story.tell_plan(DirectorSpec("rivers", mode="story", length="10min"))
+    assert long_story.scenes[0].emotion == "curious" and long_story.scenes[-1].emotion == "joyful"
+    # an explicit scene_count still wins over length
+    short = story.tell_plan(DirectorSpec("x", mode="story", length="10min", scene_count=2))
+    assert len(short.scenes) == 2
+
+
 def test_subject_extracts_a_drawable_hero_not_the_raw_phrase():
     """The story/draw hero is a DRAWABLE subject noun, not the whole topic string (which
     would box). Drawability is style-aware — cartoon skips the catalog, so it picks a word

@@ -22,6 +22,12 @@ TONES = ("neutral", "playful", "formal")
 DENSITIES = ("sparse", "normal", "dense")
 ENERGIES = ("calm", "normal", "lively")
 STYLES = ("whiteboard", "cartoon")  # render style (docs/CARTOON.md) — a separate axis from mode
+LENGTHS = (
+    "1min",
+    "2min",
+    "5min",
+    "10min",
+)  # target duration — drives scene count (scenes-over-time)
 
 
 @dataclass(frozen=True)
@@ -33,7 +39,8 @@ class DirectorSpec:
     tone: str = "neutral"
     density: str = "normal"
     energy: str = "normal"
-    scene_count: int = 3
+    length: str = "2min"  # target duration (1min/2min/5min/10min) → scene count
+    scene_count: int = 0  # 0 = derive from `length`; an explicit >0 overrides it
     style: str = "whiteboard"  # whiteboard (mono) | cartoon (filled, colored)
 
     # ---- derived, deterministic engine knobs ----
@@ -67,6 +74,22 @@ class DirectorSpec:
         # pull back to reveal). Calm energy keeps the classic static wide shot.
         return self.style == "cartoon" and self.energy != "calm"
 
+    @property
+    def target_seconds(self) -> int:
+        return {"1min": 60, "2min": 120, "5min": 300, "10min": 600}.get(self.length, 120)
+
+    @property
+    def target_scenes(self) -> int:
+        """A lesson's LENGTH is scenes-over-time (each scene clears the board, ~30-40s each),
+        NOT more concepts crammed on one board — that just overflows the layout. Duration →
+        scene count. ('2min' = 3, the historical default, so existing behavior is unchanged.)"""
+        return {"1min": 2, "2min": 3, "5min": 8, "10min": 16}.get(self.length, 3)
+
+    @property
+    def scenes(self) -> int:
+        """The effective scene count: an explicit `scene_count` wins; else derive from `length`."""
+        return self.scene_count if self.scene_count > 0 else self.target_scenes
+
 
 def to_dict(spec: DirectorSpec) -> dict:
     d = asdict(spec)
@@ -75,6 +98,9 @@ def to_dict(spec: DirectorSpec) -> dict:
         draw_speed=spec.draw_speed,
         say_dwell=spec.say_dwell,
         cinematic=spec.cinematic,
+        scene_count=spec.scenes,  # report the EFFECTIVE count (length-derived unless overridden)
+        scenes=spec.scenes,
+        target_seconds=spec.target_seconds,
     )
     return d
 
@@ -112,6 +138,15 @@ def _heuristic(request: str, spec: DirectorSpec) -> DirectorSpec:
         ch["style"] = "cartoon"
     if has("whiteboard", "sketch", "diagram", "mono"):
         ch["style"] = "whiteboard"
+    # target duration cues (check longest first so "10 min" isn't caught by "1 min")
+    if has("10 min", "10-min", "10min", "ten min", "ten-minute"):
+        ch["length"] = "10min"
+    elif has("5 min", "5-min", "5min", "five min"):
+        ch["length"] = "5min"
+    elif has("2 min", "2min", "two min"):
+        ch["length"] = "2min"
+    elif has("1 min", "1min", "one min", "a minute"):
+        ch["length"] = "1min"
     return replace(spec, **ch) if ch else spec
 
 

@@ -89,6 +89,9 @@ BEAT_SCHEMA = {
 }
 
 
+_LLM_MAX_SCENES = 6  # a single local-model call can't coherently fill more scenes than this
+
+
 def _min_beats(spec) -> int:
     """A structural FLOOR so a small local model can't truncate the lesson to 1-2 lines
     (NOTEBOOK O1/K7 — under-production is the visible story failure). Enforced as the
@@ -100,7 +103,10 @@ def _min_beats(spec) -> int:
         return cc + 1  # ONE central illustration + a few labels/lines, not a full map
     base = 2 * cc + 2  # each concept paired with a say, + an intro + a closer
     if spec.mode == "story":
-        base += max(0, spec.scene_count - 1)  # + one clear between scenes
+        # the floor scales with scenes but is CAPPED — a single local-model call can't coherently
+        # fill a long (e.g. 16-scene / 10-min) lesson; that's the outline-then-scenes follow-on.
+        # The deterministic TEMPLATE delivers the full length; the LLM stays modest for now.
+        base += max(0, min(spec.scenes, _LLM_MAX_SCENES) - 1)  # + one clear between scenes
     return base
 
 
@@ -503,15 +509,55 @@ _STORY_ARC = [
     ),
     ("Reflection", "resolve", "calm", "Looking back on {topic}.", "What a journey it was."),
 ]
+_STORY_MAX = 24  # cap scenes so even a 10-min target stays sane
+
+
+def _arc(i: int, n: int) -> tuple[str, str, str, str, str]:
+    """Scene i of n on the emotional arc (setup → build → turn → resolve). A SHORT story
+    (n ≤ the hand-authored arc) uses the authored beats verbatim (byte-identical to before);
+    a LONG story STRETCHES the same shape across n scenes by position, so any length still reads
+    as a story — curious open, rising middle, joyful close — not N flat 'Scene k' stubs. Real
+    per-scene narrative still needs the LLM; this is the honest template floor (§K8)."""
+    if n <= len(_STORY_ARC):
+        return _STORY_ARC[i]
+    if i == 0:
+        return _STORY_ARC[0]  # Setup / curious
+    if i == n - 1:
+        return _STORY_ARC[2]  # Resolution / joyful — a satisfying close
+    pos = i / (n - 1)  # position through the middle, 0..1
+    k = i + 1
+    if pos < 0.45:
+        return (
+            f"Building {k}",
+            "build",
+            "curious",
+            "Then {topic} grows and develops.",
+            "The story moves forward.",
+        )
+    if pos < 0.75:
+        return (
+            f"Turning point {k}",
+            "build",
+            "tense",
+            "Now {topic} reaches a turning point.",
+            "The tension rises.",
+        )
+    return (
+        f"Toward the end {k}",
+        "resolve",
+        "wonder",
+        "Things come together for {topic}.",
+        "We're nearly there.",
+    )
 
 
 def _story_plan(spec: DirectorSpec, P):
-    n = max(2, min(spec.scene_count, len(_STORY_ARC)))
+    n = max(2, min(spec.scenes, _STORY_MAX))  # length → scenes-over-time (each scene clears)
     subj = _subject(spec.topic, spec.style)
     cartoon = spec.style == "cartoon"
     scenes = []
     for i in range(n):
-        label, purpose, emotion, line1, line2 = _STORY_ARC[i]
+        label, purpose, emotion, line1, line2 = _arc(i, n)
         ents = [
             P.Entity(
                 f"t{i}",
@@ -601,13 +647,12 @@ def _learn(spec: DirectorSpec) -> list[Beat]:
 
 
 def _story(spec: DirectorSpec) -> list[Beat]:
-    labels = [arc[0] for arc in _STORY_ARC]  # share the arc's labels (single source)
-    n = max(2, min(spec.scene_count, len(labels)))
+    n = max(2, min(spec.scenes, _STORY_MAX))  # length → scenes-over-time
     beats: list[Beat] = []
     for i in range(n):
         if i:
             beats.append(clear())  # new scene
-        label = labels[i]
+        label = _arc(i, n)[0]
         beats += [
             say(f"Scene {i + 1}: {label.lower()} of {spec.topic}."),
             show(f"t{i}", "text", at("top"), text=f"Scene {i + 1} · {label}", font=0.5),

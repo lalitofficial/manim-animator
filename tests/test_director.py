@@ -51,3 +51,18 @@ def test_derived_knobs():
 def test_to_dict_includes_derived():
     d = to_dict(direct("x"))
     assert {"mode", "audience", "concept_count", "draw_speed", "say_dwell"} <= d.keys()
+
+
+def test_length_drives_scene_count():
+    # duration is scenes-over-time; '2min' stays the historical default (3 scenes)
+    assert DirectorSpec("x", length="2min").scenes == 3
+    assert DirectorSpec("x", length="5min").scenes == 8
+    assert DirectorSpec("x", length="10min").scenes == 16
+    assert DirectorSpec("x", length="10min").scenes > DirectorSpec("x", length="2min").scenes
+    # an explicit scene_count overrides the length-derived value
+    assert DirectorSpec("x", length="10min", scene_count=4).scenes == 4
+    # a natural-language cue in the request maps to a length
+    assert direct("rivers", request="explain it in 10 minutes").length == "10min"
+    # to_dict reports the EFFECTIVE scene count + the length/seconds
+    d = to_dict(direct("x", length="5min"))
+    assert d["length"] == "5min" and d["scene_count"] == 8 and d["target_seconds"] == 300
