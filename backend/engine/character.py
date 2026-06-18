@@ -261,14 +261,31 @@ def _translate(s: Stroke, to) -> Stroke:
     return g.transform([s], to[0], to[1], 1.0)[0]
 
 
-def _seg2(root, spec, line_color: str):
-    """A 2-segment limb root→elbow→end from a [a1, l1, a2, l2] spec (angles 0°=right, 90°=up).
-    Returns (strokes, end_point) so the caller can place a hand/foot at the end."""
+def _seg2(root, spec, fill: str, line: str, width: float = 0.13):
+    """A 2-segment limb root→elbow→end as a THICK filled bar — a cartoon limb, not a stick line
+    (the renderer draws every stroke at a fixed ~2.4px, so a polyline reads as a wire). Returns
+    (strokes, end_point) so the caller places a hand/foot at the end. Angles: 0°=right, 90°=up."""
     a1, l1, a2, l2 = spec
     r1, r2 = math.radians(a1), math.radians(a2)
     elbow = (root[0] + l1 * math.cos(r1), root[1] + l1 * math.sin(r1))
     end = (elbow[0] + l2 * math.cos(r2), elbow[1] + l2 * math.sin(r2))
-    return [Stroke((root, elbow, end), closed=False, color=line_color)], end
+
+    def _perp(a, b):  # the half-width offset perpendicular to a→b
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        ln = math.hypot(dx, dy) or 1e-6
+        return (-dy / ln * width / 2, dx / ln * width / 2)
+
+    p1, p2 = _perp(root, elbow), _perp(elbow, end)
+    pe = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)  # mitre the bend at the elbow
+    pts = (
+        (root[0] + p1[0], root[1] + p1[1]),
+        (elbow[0] + pe[0], elbow[1] + pe[1]),
+        (end[0] + p2[0], end[1] + p2[1]),
+        (end[0] - p2[0], end[1] - p2[1]),
+        (elbow[0] - pe[0], elbow[1] - pe[1]),
+        (root[0] - p1[0], root[1] - p1[1]),
+    )
+    return [Stroke(pts, closed=True, color=line, fill=fill)], end
 
 
 def _limbs(pose: dict, pal: dict[str, str], facing: float = 0.0) -> list[Stroke]:
@@ -278,16 +295,16 @@ def _limbs(pose: dict, pal: dict[str, str], facing: float = 0.0) -> list[Stroke]
     profile = abs(facing) > 0.82
     near = 1.0 if facing >= 0 else -1.0  # the screen side facing the viewer
     out: list[Stroke] = []
-    for hip_x, key in ((-_HIP_X, "l_leg"), (_HIP_X, "r_leg")):  # legs behind
-        seg, end = _seg2((hip_x, _HIP_Y), pose[key], pal["pants_line"])
+    for hip_x, key in ((-_HIP_X, "l_leg"), (_HIP_X, "r_leg")):  # legs behind (pants-colored)
+        seg, end = _seg2((hip_x, _HIP_Y), pose[key], pal["pants"], pal["pants_line"], 0.17)
         out += seg
-        out += [_translate(s, end) for s in _fill([g.ellipse(0.1, 0.06)], pal["shoe"], pal["ink"])]
+        out += [_translate(s, end) for s in _fill([g.ellipse(0.11, 0.07)], pal["shoe"], pal["ink"])]
     for sh_x, key in ((-_SHOULDER_X, "l_arm"), (_SHOULDER_X, "r_arm")):
         if profile and sh_x * near < 0:  # the FAR arm is behind the body — drop it (profile)
             continue
-        seg, end = _seg2((sh_x, _SHOULDER_Y), pose[key], pal["shirt_line"])
+        seg, end = _seg2((sh_x, _SHOULDER_Y), pose[key], pal["skin"], pal["skin_line"], 0.14)
         out += seg
-        out += [_translate(s, end) for s in _fill([g.circle(0.07)], pal["skin"], pal["skin_line"])]
+        out += [_translate(s, end) for s in _fill([g.circle(0.085)], pal["skin"], pal["skin_line"])]
     return out
 
 
