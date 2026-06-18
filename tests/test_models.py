@@ -87,3 +87,30 @@ def test_describe_reports_both_jobs_and_warns_on_template(monkeypatch):
     assert d["story"]["provider"] == "template" and d["svg"]["provider"] == "fixture"
     assert any("template" in w.lower() for w in d["warnings"])
     assert d["ollama_reachable"] is False  # probe neutralized by the hermetic fixture
+
+
+# --- voice resolution (Phase 5) --------------------------------------------- #
+def test_voice_defaults_to_webspeech(monkeypatch):
+    monkeypatch.delenv("VOICE_PROVIDER", raising=False)
+    r = models.resolve_voice()
+    assert r.provider == "webspeech" and r.warning is None  # free, zero-install default
+
+
+def test_voice_local_is_free_optin(monkeypatch):
+    monkeypatch.setenv("VOICE_PROVIDER", "kokoro")
+    r = models.resolve_voice()
+    assert r.provider == "kokoro" and r.warning is None  # local free, no key needed
+
+
+def test_voice_paid_needs_key(monkeypatch):
+    monkeypatch.setenv("VOICE_PROVIDER", "elevenlabs")
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    r = models.resolve_voice()
+    assert r.provider == "webspeech" and r.warning  # no key -> no paid call, and SAYS so
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")
+    assert models.resolve_voice().provider == "elevenlabs"
+
+
+def test_describe_includes_voice(monkeypatch):
+    monkeypatch.delenv("VOICE_PROVIDER", raising=False)
+    assert models.describe()["voice"]["provider"] == "webspeech"

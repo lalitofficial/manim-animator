@@ -205,6 +205,7 @@ def engine_status():
         "story_provider": d["story"]["provider"],
         "story_model": d["story"]["model"],
         "svg_provider": d["svg"]["provider"],
+        "voice_provider": d["voice"]["provider"],
         "ollama_reachable": d["ollama_reachable"],
         "ollama_models": d["ollama_models"],
         "gemini_key_set": d["gemini_key_set"],

@@ -160,12 +160,69 @@ def resolve_svg() -> Resolved:
     return _resolve_ollama("svg", requested, "OLLAMA_SVG_MODEL", auto=False)
 
 
+# Voice provider for narration + lip-sync (docs/ROADMAP-story-voice.md §5). Default is the FREE,
+# zero-install browser path; local-gen (kokoro/headtts) and paid cloud are opt-in only — never a
+# silent default, exactly like the story/svg providers (NOTEBOOK O2).
+VOICE_LOCAL = ("kokoro", "headtts", "piper")  # free, local, precise word/viseme timing
+VOICE_CLOUD_KEYS = {  # paid, opt-in, key-gated
+    "elevenlabs": "ELEVENLABS_API_KEY",
+    "azure": "AZURE_SPEECH_KEY",
+    "openai": "OPENAI_API_KEY",
+}
+
+
+def resolve_voice() -> Resolved:
+    """Which voice drives narration + lip-sync. Default `webspeech` (free, in-browser, coarse
+    text-estimated visemes — the Phase-4b bootstrap). `kokoro`/`headtts`/`piper` are free LOCAL
+    opt-ins with precise word/viseme timing (Phase 5). Cloud (elevenlabs/azure/openai) is paid and
+    runs ONLY when named AND keyed; otherwise it falls back to webspeech and SAYS so."""
+    requested = os.environ.get("VOICE_PROVIDER", "webspeech").strip().lower()
+    if requested in ("", "auto", "webspeech", "browser"):
+        return Resolved(
+            "voice",
+            requested or "webspeech",
+            "webspeech",
+            None,
+            False,
+            "browser Web Speech — free, zero-install; coarse (text-estimated) lip-sync",
+        )
+    if requested in VOICE_LOCAL:
+        return Resolved(
+            "voice",
+            requested,
+            requested,
+            None,
+            False,
+            f"local {requested} — free, precise word/viseme timing (opt-in)",
+        )
+    if requested in VOICE_CLOUD_KEYS:
+        key = VOICE_CLOUD_KEYS[requested]
+        if os.environ.get(key):
+            return Resolved("voice", requested, requested, None, False, f"cloud {requested} (paid)")
+        return Resolved(
+            "voice",
+            requested,
+            "webspeech",
+            None,
+            False,
+            f"{requested} selected but {key} is not set — using browser Web Speech",
+        )
+    return Resolved(
+        "voice",
+        requested,
+        "webspeech",
+        None,
+        False,
+        f"unknown VOICE_PROVIDER '{requested}' — using browser Web Speech",
+    )
+
+
 def describe() -> dict:
     """The whole model config, for /api/engine/status + the Studio. The single
     source of truth so the product can SHOW exactly what's running (no guessing)."""
-    story, svg = resolve_story(), resolve_svg()
+    story, svg, voice = resolve_story(), resolve_svg(), resolve_voice()
     tags = ollama_tags()
-    warnings = [r.warning for r in (story, svg) if r.warning]
+    warnings = [r.warning for r in (story, svg, voice) if r.warning]
     if story.provider == "template":
         warnings.append(
             "Story is the offline TEMPLATE (generic lessons). Start Ollama (local, free) "
@@ -183,6 +240,12 @@ def describe() -> dict:
             "model": svg.model,
             "requested": svg.requested,
             "note": svg.note,
+        },
+        "voice": {
+            "provider": voice.provider,
+            "model": voice.model,
+            "requested": voice.requested,
+            "note": voice.note,
         },
         "ollama_reachable": tags is not None,
         "ollama_models": tags or [],
