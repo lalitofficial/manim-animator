@@ -428,20 +428,20 @@
      ]
     ],
     "closed": true,
-    "fill": "#8a93a6",
-    "stroke": "#5b6478"
+    "fill": "#5e5048",
+    "stroke": "#36302b"
    },
    {
     "prim": "triangle",
     "at": [
      0.0,
-     0.62
+     0.66
     ],
-    "w": 0.55,
-    "h": 0.5,
+    "w": 0.68,
+    "h": 0.72,
     "rot": 180,
-    "fill": "#ff7a3c",
-    "stroke": "#d8501a"
+    "fill": "#ff5226",
+    "stroke": "#c23a12"
    },
    {
     "prim": "polyline",

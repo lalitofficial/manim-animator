@@ -34,7 +34,7 @@ from engine.contracts import (
     split_paint_attrs,
 )
 from engine.drawing import measure, paint
-from engine.layout import compose_cartoon
+from engine.layout import _band, compose_cartoon
 from engine.positioning import place
 from engine.route import route
 from engine.serialize import op_to_dict
@@ -338,6 +338,24 @@ def _effective_framing(
     return framing, focus_id
 
 
+def _snap_to_ground(op: dict, grass_y: float, max_reach: float = 2.4) -> None:
+    """Plant a floating prop on the grass: drop its strokes so the INK bottom sits on the ground
+    line (a recipe's box often pads below the actual shape, so 'grounding the box' leaves the shape
+    hovering). Only nudges props already NEAR the ground — a sky prop (sun, cloud) sits far above and
+    is left alone. Mutates the op's strokes/label in place."""
+    ys = [pt[1] for s in op.get("strokes", []) for pt in s.get("points", [])]
+    if not ys:
+        return
+    float_amt = min(ys) - grass_y  # >0 = hovering above the grass
+    if not (0.04 < float_amt < max_reach):
+        return  # already grounded, sunk, or a high sky prop → leave it
+    dy = -float_amt
+    for s in op.get("strokes", []):
+        s["points"] = [[round(x, 4), round(y + dy, 4)] for x, y in s["points"]]
+    if op.get("label_pos"):
+        op["label_pos"] = [op["label_pos"][0], round(op["label_pos"][1] + dy, 4)]
+
+
 def _camera_full(board: Board, ms: int = 900) -> dict:
     return {"type": "camera", "x": 0.0, "y": 0.0, "w": board.w, "h": board.h, "ms": ms}
 
@@ -428,6 +446,7 @@ def compile_plan(
     board = board or Board()
     style = lesson.style or spec.style
     cinematic = style == palette.CARTOON and spec.energy != "calm"
+    grass_y = -board.hh + palette.HORIZON_FRAC * board.h  # the ground line props should sit on
     real = placeholders = dropped = 0
     by_source: dict[str, int] = {}
 
@@ -523,6 +542,14 @@ def compile_plan(
                     "type": "draw",
                     "op": op_to_dict(paint(tmap[eid], p, d, style=style, scene=scene_name)),
                 }
+                if (
+                    style == palette.CARTOON
+                    and eid in framable
+                    and _band(tmap[eid].concept or "") != "sky"
+                ):
+                    _snap_to_ground(
+                        ev["op"], grass_y
+                    )  # plant GROUND props on the grass (sky props float)
                 # The host ACTS its mood: an emotion-driven gesture clip (mined poses),
                 # rendered to placed frames the board flips through. Cartoon only.
                 if cinematic and eid in chars:

@@ -227,7 +227,7 @@ SCENES: dict[str, tuple[str, str]] = {
     "night": ("#10162e", "#27315c"),
     "desert": ("#ffe6b0", "#e3b56b"),
     "body": ("#ffe0e4", "#f3b9c2"),
-    "default": ("#eaf3fb", "#cfe2f2"),
+    "default": ("#7fb8ec", "#cfe9ff"),  # a real sky: deeper blue up top, light haze at the horizon
 }
 
 # Dark backdrops need LIGHT label ink (op_color) for contrast.
@@ -403,7 +403,7 @@ _SCENE_GROUND: dict[str, str] = {
     "classroom": "#caa472",
     "sunset": "#b98a5a",
     "desert": "#e0b86a",
-    "default": "#bcd9a0",
+    "default": "#84c45f",  # a richer grass green (was a washed-out pale #bcd9a0)
 }
 
 

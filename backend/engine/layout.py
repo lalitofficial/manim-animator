@@ -110,7 +110,7 @@ def _band(concept: str) -> str:
         return "sky"
     if c in _GROUND or words & _GROUND or any(s in c for s in ("tree", "mountain", "river")):
         return "ground"
-    return "mid"
+    return "ground"  # default: a prop SITS on the ground, not floating in mid-air (looks amateur)
 
 
 def _cols(n: int) -> int:
@@ -198,7 +198,7 @@ def compose_cartoon(
         placements.append(
             Placement(
                 h.id,
-                round(-board.hw + h.extent.w / 2 + 0.4, 4),
+                round(-board.hw + h.extent.w / 2 + 0.75, 4),  # clear the left edge (was clipping)
                 round(horizon + h.extent.h / 2, 4),
                 h.extent.w,
                 h.extent.h,
@@ -240,7 +240,12 @@ def compose_cartoon(
     min_slot = min(
         (band_x[b][1] - band_x[b][0]) / len(items) for b, items in bands.items() if items
     )
-    f = min(min_slot * 0.82 / max(smax_w, 1e-6), band_h * 0.82 / max(smax_h, 1e-6), 1.7)
+    # When the scene is ONLY ground props (the common cartoon case: a hero on a stage), let them
+    # use the whole height from the grass up to the title — a PROMINENT subject, not a token
+    # stranded in a 32%-tall band. Multi-band scenes keep the banded height (so bands don't overlap).
+    only_ground = bool(bands["ground"]) and not bands["sky"] and not bands["mid"]
+    scale_h = (board.hh - (1.7 if title else _MARGIN) - horizon) if only_ground else band_h
+    f = min(min_slot * 0.82 / max(smax_w, 1e-6), scale_h * 0.82 / max(smax_h, 1e-6), 3.4)
 
     for band, items in bands.items():
         if not items:
