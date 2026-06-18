@@ -131,7 +131,7 @@ function voiceProfile() {
   return { rate: 0.94, pitch: 1.0, volume: 1 };
 }
 
-async function speak(text) {
+async function speak(text, onBoundary) {
   if (!('speechSynthesis' in window) || !text) {
     await sleep(estimateSpeechMs(text));
     return;
@@ -149,6 +149,9 @@ async function speak(text) {
     u.rate = profile.rate;
     u.pitch = profile.pitch;
     u.volume = profile.volume;
+    // Word boundaries (desktop Chrome/Safari + local voices) let us reveal a concept the instant
+    // its word is spoken — closed-loop timing instead of the estimate. Ignored where unsupported.
+    if (onBoundary) u.onboundary = (be) => onBoundary(be.charIndex || 0);
     let finished = false;
     const finish = () => {
       if (finished) {
@@ -592,12 +595,24 @@ async function playTimeline(tl) {
       caption.textContent = ev.text || '';
       const durMs = estimateSpeechMs(ev.text || '');
       const tlen = Math.max(1, (ev.text || '').length);
-      for (const { e: ae, m } of anchoredBySay[e.id] || []) {
+      const anchored = anchoredBySay[e.id] || [];
+      const fired = new Set();
+      const fireUpTo = (charIdx) => {
+        for (const { e: ae, m } of anchored) {
+          if (!fired.has(ae.id) && (m.char_start || 0) <= charIdx) {
+            fired.add(ae.id);
+            dispatch({ type: ae.kind, ...ae.payload });
+          }
+        }
+      };
+      // Fallback: fire each reveal by its ESTIMATED time if no word boundary reaches it.
+      for (const { m } of anchored) {
         const at = Math.round(Math.min(0.92, (m.char_start || 0) / tlen) * durMs);
-        setTimeout(() => dispatch({ type: ae.kind, ...ae.payload }), at);
+        setTimeout(() => fireUpTo(m.char_start || 0), at);
       }
       lipSync('guide', ev.text || '', durMs); // the host's mouth moves with the words
-      await speak(ev.text || '');
+      await speak(ev.text || '', fireUpTo); // real word boundaries reveal concepts as spoken
+      fireUpTo(tlen); // flush anything a boundary/estimate missed
     } else {
       const p = dispatch(ev);
       if (p) {

@@ -29,10 +29,13 @@ export function clearBoard(svg) {
   return defs;
 }
 
-function speak(text) {
+function speak(text, onBoundary) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  const u = new SpeechSynthesisUtterance(text);
+  // Word boundaries (where supported) let a concept reveal the instant its word is spoken.
+  if (onBoundary) u.onboundary = (be) => onBoundary(be.charIndex || 0);
+  window.speechSynthesis.speak(u);
 }
 
 function makeToPx(halfW, halfH) {
@@ -494,17 +497,27 @@ export async function playTimeline(svg, timeline, onEvent, signal) {
     const ev = { type: e.kind, ...e.payload };
     if (e.kind === 'say') {
       onEvent?.(ev);
-      speak(ev.text || '');
       const durMs = sayMs(ev.text || '');
       const tlen = Math.max(1, (ev.text || '').length);
-      for (const { e: ae, m } of anchoredBySay[e.id] || []) {
+      const anchored = anchoredBySay[e.id] || [];
+      const fired = new Set();
+      const fireUpTo = (charIdx) => {
+        for (const { e: ae, m } of anchored) {
+          if (!fired.has(ae.id) && (m.char_start || 0) <= charIdx && !signal?.aborted) {
+            fired.add(ae.id);
+            dispatch({ type: ae.kind, ...ae.payload });
+          }
+        }
+      };
+      // Fallback: fire each reveal by its ESTIMATED time if no word boundary reaches it.
+      for (const { m } of anchored) {
         const at = Math.round(Math.min(0.92, (m.char_start || 0) / tlen) * durMs);
-        setTimeout(() => {
-          if (!signal?.aborted) dispatch({ type: ae.kind, ...ae.payload });
-        }, at);
+        setTimeout(() => fireUpTo(m.char_start || 0), at);
       }
       lipSync('guide', ev.text || '', durMs); // the host's mouth moves with the words
+      speak(ev.text || '', fireUpTo); // real word boundaries reveal concepts as spoken
       await sleep(durMs, signal);
+      fireUpTo(tlen); // flush anything a boundary/estimate missed
     } else {
       const p = dispatch(ev);
       if (p) await p;
