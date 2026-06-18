@@ -719,3 +719,111 @@ The pre-commit hooks need `uv` on PATH (`~/.local/bin`) and auto-fix EOF/format,
 →commit is the rhythm. *Lesson: the cheapest acting cues (look where you point, blink when idle) read
 as intention and life far out of proportion to their code — polish the SEAMS the eye lands on (face,
 gaze, stillness), not the parts it skims.*
+
+---
+
+## O. The next direction — Story + Voice + Timeline (plan, 2026-06-18; full doc: docs/ROADMAP-story-voice.md)
+
+**O1. Narration is the master clock — "take the LLM out of CHOREOGRAPHY" (the third time we run B4).**
+The current stream is a QUEUE (say blocks drawing, no shared time); the ecosystem (Motion Canvas /
+Theatre.js / GSAP / Lottie / Rive / Spine / Rhubarb) all point to a mini animation TIMELINE: parallel
+tracks (draw/speech/character/camera), keyframes, easing, **audio markers**. The unifying insight that
+ties Story-gen and Voice-sync into ONE design: *a concept is revealed when it is spoken; a named MARKER
+is the seam between words and pixels.* So the LLM writes only the SCRIPT (words + concepts + relations +
+arc); a DETERMINISTIC choreographer anchors reveals/points/camera to narration markers; the voice layer
+resolves marker TIMES. This is B4/H3 applied a third time — first geometry left the model (Drawing),
+then coordinates (Positioning), now TIME (Choreography). *Why: the model is good at words and intent,
+bad at timing/geometry; markers are the cheap, testable seam (coverage/causality/cadence are all
+machine-computable, like overlap/on-board were for Positioning).* The mechanism is Motion Canvas's
+`{name, targetTime}` map, which degrades perfectly to our live board: a marker resolves LIVE (word
+boundary) or AHEAD (audio timestamp).
+
+**O2. "Free now, better later" voice = free-LOCAL Kokoro, not browser TTS.** Lalit can't pay for
+ElevenLabs yet but chose 5–6-shape viseme lip-sync. Key correction: browser Web Speech CANNOT deliver
+that (you can't capture its audio → no Rhubarb; word boundaries are non-portable; elapsedTime units
+drift per browser), so the chosen fidelity *requires* a local audio-gen path. **The free-local path is
+HeadTTS (wrapping a timestamped Kokoro-82M ONNX), Apache-2.0, $0, Ollama-for-voice** — HeadTTS is what
+claims audio+phoneme+viseme timings in one call; *Kokoro core/other wrappers vary, so VALIDATE the exact
+provider before committing (roadmap §V0) and keep a phoneme→viseme fallback chain.* So the design is a
+`VOICE_PROVIDER` knob (mirrors M2's
+`STORY_PROVIDER` local-first): default free-local Kokoro, Web Speech as the zero-install bootstrap,
+ElevenLabs/Azure a one-line paid upgrade later. *Lesson: "free" and "paid-quality-later" are a PROVIDER
+axis, not a reason to ship the weaker mechanism — pick the free path that can still reach the quality bar
+(local-gen), and gate the paid swap behind the same surface as every other provider. Also: Piper is
+GPL-3.0 → prefer Apache-2.0 Kokoro to dodge copyleft.*
+
+**O3. We're 80% to a Spine rig and a timeline — the gaps are a mouth SLOT and a master-clock scheduler.**
+plan.py already has a direction grammar (scenes/shots/actions + closed verbs + emotion); character.py
+already has bone-poses (pose_library.json = Spine setup-poses), interpolate/perform/clip_drawables (a
+keyframe engine), look-at-target, idle-life; the board already flipbooks `op.frames`. The two real gaps:
+(1) the mouth is frozen per-expression — make it a swappable SLOT (Spine model) rendered as a small
+CLIENT-swap layer (not server frames, or lip-sync frames explode), driven by a viseme track; (2) the
+board's `play()` is `await`-per-event — replace with a master-clock scheduler that resolves markers and
+runs tracks in parallel (draw WHILE talking). *Lesson: before designing a new format, check what the
+code already is — our rig was accidentally Spine-shaped and our plan.py was a half-built timeline; the
+work is lifting them, not inventing.*
+
+**O4. Sequence by the WEAKEST LINK, not by the architecture diagram (Lalit, 2026-06-18).** The clean
+build order (timeline → choreographer → voice → character) buries Story hardening at the end — but story
+is *already the visible failure* (cartoon lessons stop after 1–2 lines), and the choreographer can't run
+without the script's `[concept]` markers/concepts/relations anyway. So split story: a **minimal Script V0**
+ships FIRST (schema + root-causing the truncation), and the heavier hardening (provenance, BYO-IR,
+local-model robustness, Studio debug) is an **ongoing parallel track**, not an end-phase. *Lesson: don't
+let the lower layers (voice/timeline) outrun the layer that's already broken; order phases so the
+currently-visible pain is addressed early, especially when it's also an upstream dependency.* Corollary
+on the anti-rewrite gate: **"pixel-identical" is the wrong bar for animated timing** — use a TOLERANCE
+gate (same final frame + same event order + same marker-resolved schedule + sampled keyframes within
+tolerance). Exact-bytes equality is brittle where the whole point is motion.
+
+**O5. Structured DECODING is the story fix; DragonBones (MIT) is the rig reference (Lalit's survey,
+2026-06-18).** Two refinements from a tool survey that both *confirmed* "upgrade, don't replace." (1)
+Under-produced/malformed story is best fixed at the SOURCE with **typed structured decoding** (constrain
+generation to a JSON schema), not just defensive parsing — `minItems` forces min scene/narration counts
+so "stops after 1–2 lines" can't happen *if* the cause is generation. Use **Ollama-native JSON-schema
+`format` first** (it's on the models.py surface, zero new dep, and llama.cpp GBNF enforces the grammar
+incl. minItems); escalate to **Outlines/Instructor** only if native is too weak — Outlines' logit-masking
+needs a non-Ollama serving path, which would fork the single provider surface (M1), so don't reach for it
+by default. Caveats: structured decoding guarantees valid+complete STRUCTURE, never good CONTENT, and does
+nothing if the truncation is post-processing (a sanitize cap) — so diagnose the cause first (why Script V0
+opens with root-causing, not schema work). (2) For the rig, adopt the **DragonBones (DragonBonesJS, MIT)**
+data model — bones/slots/attachments/pose/clip/mouthTrack — NOT Spine: Spine runtimes need a paid seat
+(Spine Runtimes License). Re-implement the concepts in character.py (concepts aren't licensable), but cite
+the MIT source to stay clean (J5). *Lesson: when borrowing a data model, pick the MIT sibling as the
+reference even if the famous one is paid — and prefer the structured-output path already on your provider
+surface over a more powerful library that forks it.*
+
+**O6. The [concept]-marker contract — narration binds to the visual, with ZERO schema change
+(Script V0 done, 2026-06-18).** Narration carries inline `[concept]` tokens (`say "The [sun] warms the
+[ground]."`). Key design wins: (1) markers ride *inside the existing `say` text string*, so `BEAT_SCHEMA`
+needed NO change — only `parse_marks(raw)→(clean_text, marks)` extracts them, brackets stripped for TTS,
+char-offsets recorded into the CLEAN text (future per-word timing). (2) `Mark`/`Beat.marks`/`Shot.marks`
+are additive optional tuples → fully backward-compatible; both renderers ignore the extra `marks` key on
+the say event (no divergence — L9). (3) **Resolution is authoritative at ONE place — `compile_plan`,
+against the entities actually STAGED** — not at parse time; so capped-out/forward-ref/BYO-plan all resolve
+uniformly, and unmatched markers DROP (drop-don't-repair). (4) Markers bind to CONTENT props only — the
+title (`kind=text`) and host (`kind=character`) are excluded, or a `[text]`/`[guide]` would falsely bind
+to scaffolding. *Lesson: when adding a cross-cutting annotation, hide it INSIDE an existing string field
+(zero schema/contract churn), record structured data alongside, and resolve at the single point that has
+the final truth (staged entities), not where it's first seen.* Two process notes: a design Workflow
+with a deeply-NESTED StructuredOutput schema sent the synthesizer agent into a 40-min validation-retry
+runaway — **keep workflow output schemas FLAT** (the review workflow's flat schema ran clean in ~5 min);
+and when a delegated step hangs, kill it and proceed on your own context rather than block.
+
+**O7. The Timeline IR — encode the QUEUE'S await-semantics as data; a marker is a CLOCK POINT, not a
+char-range (Phase 2a, 2026-06-18).** `backend/engine/timeline.py` adds the Timeline IR (parallel tracks +
+markers) and `from_events`, the ANTI-REWRITE adapter that compiles today's linear event stream into a
+degenerate timeline. The load-bearing trick: encode the board's exact await behavior as a per-entry
+**`blocking` flag** (say/draw/connector/hold/clear block the cursor; camera/action/background don't), so
+`resolve_schedule` reproduces the current queue cursor to the millisecond — then the SAME IR generalizes
+to the parallel, marker-anchored timelines the choreographer will emit. The gate is §K1 applied to
+playback: an **independent** re-derivation of the old queue schedule straight from raw events, compared to
+the timeline's resolved schedule (not the engine's own numbers). *Lessons:* (1) to replace a control-flow
+mechanism (an await-queue) without a rewrite, **turn its implicit timing rules into explicit data** — the
+new player then reproduces the old by construction and extends past it. (2) **A timeline marker is a
+master-clock point `{name, t}`** (Motion Canvas / roadmap §3): adversarial review caught that I'd built
+markers carrying only character offsets and NO `t` time slot, so the voice layer would have had nowhere to
+write the resolved time and `at:"m:x"` couldn't resolve — fixed before it calcified (`t` seconds, None
+until filled; `char_start/char_end` are the separate word-timing offsets). (3) **Name deferred gaps in
+the code:** bounded overlap isn't expressible yet — documented in `resolve_schedule` as the Phase-3
+`at`-grammar extension, not silently missing. *The two renderers still diverge (board/engine.js clear=800
++ post-say dwell; Studio board.js clear=750, no dwell) — Phase 2b must unify them on this one IR (L9).*
