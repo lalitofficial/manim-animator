@@ -152,7 +152,11 @@ async def lesson_ws(ws: WebSocket):
     """
     await ws.accept()
     try:
-        req = json.loads(await ws.receive_text())
+        try:
+            req = json.loads(await ws.receive_text())
+        except (json.JSONDecodeError, ValueError):
+            await ws.send_json({"type": "error", "error": "malformed request (expected JSON)"})
+            return
         topic = (req.get("text") or "").strip()
         mode = (req.get("mode") or "learn").strip()
         if not topic:

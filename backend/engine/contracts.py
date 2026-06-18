@@ -212,7 +212,7 @@ class Drawable:
     strokes: tuple[Stroke, ...]
     extent: Extent
     rung: int  # which ladder rung resolved it (§5.3)
-    source: str = "primitive"  # primitive | icon | sketch | generated | box
+    source: str = "primitive"  # primitive | icon | character | catalog | sketch | generated | box
     fill: bool = False
     label: str | None = None  # text rendered inside/with the drawable
 
@@ -230,7 +230,9 @@ class DrawOp:
     label: str | None = None
     label_pos: Point | None = None
     rung: int = 0  # which Drawing ladder rung drew it (6 = placeholder box; 0 = connector)
-    source: str = ""  # primitive | icon | sketch | generated | box | connector
+    source: str = (
+        ""  # primitive | icon | character | catalog | sketch | generated | box | connector
+    )
     z: int = 1  # paint order: background=0, things=1, connectors=2, presenter=3
     entrance: str = "draw"  # how it appears: draw (pen reveal) | pop | rise | fade
     ambient: str = ""  # idle motion once drawn: "" (none) | bob | float | sway

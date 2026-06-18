@@ -30,12 +30,14 @@ def op_to_dict(op: DrawOp) -> dict:
         else None,
         "length": op.length,
         "rung": op.rung,
-        "source": op.source,  # primitive | icon | sketch | generated | box
+        "source": op.source,  # primitive | icon | character | catalog | sketch | generated | box
         "placeholder": op.source == "box",  # a labeled box, not a real drawing
         "z": op.z,  # paint order (background 0 < things 1 < connectors 2 < presenter 3)
         "entrance": op.entrance,  # draw | pop | rise | fade
-        "ambient": op.ambient,  # "" | bob | float | sway
+        "ambient": op.ambient,  # "" | bob | float | sway | glow | rise | fall | flow
         "strokes": [stroke_to_dict(s) for s in op.strokes],
+        # NOTE: character motion adds `frames`/`fps`/`loop`/`idle` to this op dict downstream
+        # in plan.compile_plan (a server-rendered flipbook the renderers' playClip plays).
     }
 
 

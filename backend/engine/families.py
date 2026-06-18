@@ -862,11 +862,9 @@ _add(
 )
 _add(
     "blob",
-    {
+    {  # cell/virus/pathogen live in the dedicated science families below (richer art)
         "germ": {"body": "#8acb5a", "line": "#5a9a2b"},
-        "cell": {"body": "#9ad0ff", "line": "#4a90d9"},
         "bacteria": {"body": "#bf8acb", "line": "#8a5a9a"},
-        "virus": {"body": "#ef6f6f", "line": "#c23f3f"},
         "slime": {"body": "#5bd6a0", "line": "#2fa070"},
         "amoeba": {"body": "#c0d65b", "line": "#90a02b"},
     },
@@ -1062,7 +1060,6 @@ _add(
     "blob",
     {
         "microbe": {"body": "#7acb8a", "line": "#4a9a5a"},
-        "pathogen": {"body": "#ef8a6f", "line": "#c05a3f"},
         "fungus": {"body": "#d6a05b", "line": "#a0702b"},
         "mold": {"body": "#9abf5b", "line": "#6a902b"},
         "microorganism": {"body": "#8acbcf", "line": "#4a9a9f"},
