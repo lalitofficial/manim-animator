@@ -316,6 +316,172 @@ def test_lesson_is_deterministic():
     assert a.rendered.placements == b.rendered.placements
 
 
+# --------------------------------------------------------------------------- #
+# Script V0: inline [concept] markers bind narration to the visual (ROADMAP §1).
+# --------------------------------------------------------------------------- #
+def test_parse_marks_extracts_clean_text_and_offsets():
+    clean, marks = story.parse_marks("Water turns to [vapor] and forms [clouds].")
+    assert clean == "Water turns to vapor and forms clouds."  # brackets stripped for TTS
+    assert [m.word for m in marks] == ["vapor", "clouds"]
+    assert [m.concept for m in marks] == ["vapor", "clouds"]
+    for m in marks:  # offsets index the surface word IN THE CLEAN text
+        assert clean[m.start : m.end] == m.word
+        assert m.entity is None  # unbound until compile-time resolution
+
+
+def test_parse_marks_passthrough_without_brackets():
+    assert story.parse_marks("Just plain narration.") == ("Just plain narration.", ())
+    assert story.parse_marks("") == ("", ())
+
+
+def test_parse_marks_drops_stray_and_empty_brackets():
+    # drop-don't-repair: unbalanced / empty brackets are stripped, never spoken
+    clean, marks = story.parse_marks("a [unclosed and [sun] ok] and []")
+    assert "[" not in clean and "]" not in clean
+    assert [m.word for m in marks] == ["sun"]  # the one balanced marker survives
+
+
+def test_parse_beats_carries_marks_and_cleans_text():
+    beats = story.parse_beats({"beats": [{"kind": "say", "text": "The [sun] shines."}]})
+    assert beats[0].text == "The sun shines."  # clean text for display/TTS
+    assert [m.word for m in beats[0].marks] == ["sun"]
+    plain = story.parse_beats({"beats": [{"kind": "say", "text": "no markers here"}]})[0]
+    assert plain.text == "no markers here" and plain.marks == ()  # backward compatible
+
+
+def test_marks_resolve_to_staged_entity_on_say_event():
+    """End-to-end: a [concept] matching a shown entity rides out on the say event with a
+    resolved entity id; an unmatched marker is dropped (drop-don't-repair)."""
+    from engine import plan
+    from engine.director import DirectorSpec
+
+    beats = story.parse_beats(
+        {
+            "beats": [
+                {"kind": "show", "entity": "sun", "concept": "sun", "relation": {"at": "center"}},
+                {"kind": "say", "text": "The [sun] is bright but the [moon] is hidden."},
+            ]
+        }
+    )
+    spec = DirectorSpec("the sky", mode="learn", style="cartoon")
+    lp = plan.lift_beats(story.sanitize_beats(beats, spec), "the sky", "cartoon")
+    evs = list(plan.compile_plan(lp, spec, BOARD, generate=False))
+    say_ev = next(e for e in evs if e["type"] == "say" and "sun is bright" in e["text"])
+    bound = {m["word"]: m["entity"] for m in say_ev.get("marks", [])}
+    assert bound.get("sun") == "sun"  # matched a shown entity -> resolved id
+    assert "moon" not in bound  # unmatched -> dropped (drop-don't-repair)
+
+
+def test_say_event_has_no_marks_key_when_none():
+    """Backward compat: an unmarked lesson streams plain say events (no `marks`)."""
+    from engine import plan
+    from engine.director import DirectorSpec
+
+    spec = DirectorSpec("rain", mode="learn", style="cartoon")
+    evs = list(plan.compile_plan(story.tell_plan(spec), spec, BOARD, generate=False))
+    says = [e for e in evs if e["type"] == "say"]
+    assert says and all("marks" not in e for e in says)
+
+
+def test_parse_marks_strips_lone_close_bracket():
+    """Review fix: a stray ']' with no '[' must be stripped too (the fast path used to leak
+    it into the clean text, so TTS spoke a bracket)."""
+    clean, marks = story.parse_marks("The sun sets] over the hills.")
+    assert "]" not in clean and marks == ()  # drop-don't-repair, never spoken
+    # and through parse_beats (the path that reaches TTS):
+    b = story.parse_beats({"beats": [{"kind": "say", "text": "trailing bracket]"}]})[0]
+    assert "]" not in b.text
+
+
+def _compiled_say(beats, topic, *, mode="learn"):
+    from engine import plan
+    from engine.director import DirectorSpec
+
+    spec = DirectorSpec(topic, mode=mode, style="cartoon")
+    lp = plan.lift_beats(story.sanitize_beats(beats, spec), topic, "cartoon")
+    return [e for e in plan.compile_plan(lp, spec, BOARD, generate=False) if e["type"] == "say"]
+
+
+def test_marks_do_not_leak_across_shots():
+    beats = story.parse_beats(
+        {
+            "beats": [
+                {"kind": "show", "entity": "sun", "concept": "sun"},
+                {"kind": "say", "text": "The [sun] is up."},
+                {"kind": "say", "text": "It is a fine day."},  # unmarked -> a new shot
+            ]
+        }
+    )
+    says = _compiled_say(beats, "day")
+    s1 = next(e for e in says if "is up" in e["text"])
+    s2 = next(e for e in says if "fine day" in e["text"])
+    assert s1.get("marks") and "marks" not in s2  # marks stay on their own shot, no leak
+
+
+def test_marks_resolve_forward_reference():
+    """Narration mentions [moon] BEFORE its show — still binds (resolution is against the
+    whole staged scene, not beat order)."""
+    beats = story.parse_beats(
+        {
+            "beats": [
+                {"kind": "say", "text": "Soon the [moon] appears."},
+                {"kind": "show", "entity": "moon", "concept": "moon"},
+            ]
+        }
+    )
+    say_ev = next(e for e in _compiled_say(beats, "night") if "appears" in e["text"])
+    assert {m["word"]: m["entity"] for m in say_ev.get("marks", [])}.get("moon") == "moon"
+
+
+def test_marker_to_capped_out_entity_is_dropped():
+    """A marker referencing an entity the concept-cap dropped resolves to nothing
+    (drop-don't-repair end to end)."""
+    beats = story.parse_beats(
+        {
+            "beats": [
+                {"kind": "show", "entity": e, "concept": e}
+                for e in ("sun", "moon", "star", "cloud", "tree")  # learn cap is 4 -> 'tree' drops
+            ]
+            + [{"kind": "say", "text": "The [sun] shines on the [tree]."}]
+        }
+    )
+    say_ev = next(e for e in _compiled_say(beats, "nature") if "shines" in e["text"])
+    words = {m["word"] for m in say_ev.get("marks", [])}
+    assert "tree" not in words  # the capped-out entity's marker is dropped
+
+
+def test_marks_not_bound_to_title_or_host():
+    """Scaffolding (the title 'text' entity, the host) is never a marker target — markers
+    bind to content props only (review fix)."""
+    beats = story.parse_beats(
+        {
+            "beats": [
+                {"kind": "show", "entity": "title", "concept": "text"},  # a title (kind=text)
+                {"kind": "show", "entity": "sun", "concept": "sun"},
+                {"kind": "say", "text": "read the [text] and watch the [sun]"},
+            ]
+        }
+    )
+    say_ev = next(e for e in _compiled_say(beats, "sky") if "watch the sun" in e["text"])
+    bound = {m["word"]: m["entity"] for m in say_ev.get("marks", [])}
+    assert "text" not in bound and bound.get("sun") == "sun"  # title skipped, content binds
+
+
+def test_prompt_format_has_no_brace_bug():
+    """Regression guard: the [concept] example added doubled braces — _PROMPT.format must
+    not raise (a stray single brace would KeyError)."""
+    out = story._PROMPT.format(
+        topic="photosynthesis",
+        mode_hint="hint",
+        audience="child",
+        tone="playful",
+        depth="normal",
+        concept_count=4,
+        style="cartoon",
+    )
+    assert "photosynthesis" in out and "[sun]" in out  # formats cleanly; marker rule present
+
+
 def test_lesson_svg_renders():
     from engine.svg import to_svg
 

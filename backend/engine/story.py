@@ -10,6 +10,7 @@ place a big model is needed (NOTEBOOK B4/J2).
 from __future__ import annotations
 
 import contextlib
+import copy
 import json
 import os
 import urllib.error
@@ -19,6 +20,7 @@ from typing import Protocol
 
 from engine.contracts import (
     Beat,
+    Mark,
     above,
     at,
     below,
@@ -86,6 +88,33 @@ BEAT_SCHEMA = {
     "required": ["beats"],
 }
 
+
+def _min_beats(spec) -> int:
+    """A structural FLOOR so a small local model can't truncate the lesson to 1-2 lines
+    (NOTEBOOK O1/K7 — under-production is the visible story failure). Enforced as the
+    beats-array minItems below; Ollama (llama.cpp GBNF) honours it during decoding."""
+    if spec.mode == "explain":
+        return 4  # explain is meant terse (2-3 entities, one connection)
+    cc = spec.concept_count
+    if spec.mode == "draw":
+        return cc + 1  # ONE central illustration + a few labels/lines, not a full map
+    base = 2 * cc + 2  # each concept paired with a say, + an intro + a closer
+    if spec.mode == "story":
+        base += max(0, spec.scene_count - 1)  # + one clear between scenes
+    return base
+
+
+def _beat_schema(spec) -> dict:
+    """BEAT_SCHEMA with a per-lesson minItems/maxItems on the beats array — structured
+    decoding then forces a FULL lesson, not a stub. minItems is the truncation fix; the
+    prompt still guides composition (show/say pairing, concrete drawable nouns)."""
+    s = copy.deepcopy(BEAT_SCHEMA)
+    lo = _min_beats(spec)
+    s["properties"]["beats"]["minItems"] = lo
+    s["properties"]["beats"]["maxItems"] = lo * 3 + 6
+    return s
+
+
 _PROMPT = (
     "You are a teacher planning an animated lesson on '{topic}' as a JSON object "
     '{{"beats": [...]}}. Each beat is one of:\n'
@@ -101,6 +130,9 @@ _PROMPT = (
     "- a `relation` arg must be the id of an ALREADY-shown thing (or a region for at(...)).\n"
     "- every `connect` needs BOTH src and dst, each an id you already showed.\n"
     "- {concept_count}-6 `show` beats total; pair most with one short `say`.\n"
+    "- in each `say`, WRAP the word naming a thing you `show` in [brackets], using the show's "
+    'id/concept word, e.g. {{"kind":"say","text":"The [sun] warms the [ground]."}} after showing sun '
+    "and ground. Bracket ONLY words that match a `show`; the word is still spoken normally.\n"
     "MODE: {mode_hint}\n"
     "STYLE: {style}. If STYLE is cartoon and MODE is not explain, plan a fuller mini-cartoon: "
     "5-7 short narration beats, concrete scene props, and visible action moments. Do not stop "
@@ -200,6 +232,9 @@ def script_prompt(spec: DirectorSpec, fmt: str = "beats") -> str:
         "- a `relation` arg must reference an id you ALREADY showed (or a region for at()).\n"
         "- every `connect` needs BOTH src and dst, each an id you already showed.\n"
         f"- {hint}\n"
+        "- in each `say`, wrap the word naming a thing you `show` in [brackets] (matching its "
+        'id/concept), e.g. {"kind":"say","text":"The [sun] warms the [ground]."} — this links the '
+        "narration to the picture; the word is still spoken normally.\n"
         "- 4-7 `show` beats, each paired with one short, vivid, accurate `say`."
     )
 
@@ -229,6 +264,8 @@ def _plan_prompt(spec: DirectorSpec, vocab: str) -> str:
         '- the host is "guide": use {"verb":"point","actor":"guide","target":"<id>"} so it gestures '
         "at what you explain.\n"
         "- `pulse` emphasizes, `rise`/`fall` move (evaporation up, rain down), `connect` links two ideas.\n"
+        "- in a shot's `say`, wrap the word naming an entity in [brackets] (matching its id/concept), "
+        'e.g. "say":"The [sun] heats the [water]." — it binds the narration to the visual on screen.\n'
         "- 1-3 scenes (a new scene changes the setting/place), 2-4 shots each; every shot has a `say` "
         "and 1-2 actions. Build the story beat by beat — this is a film, not a diagram."
     )
@@ -431,20 +468,50 @@ def _explain_plan(spec: DirectorSpec, P):
 
 
 # Story mode is a real emotional ARC, not N flat scenes: curiosity → tension → release.
+# Each entry is (label, purpose, emotion, line1, line2): the two LINEs give every scene a
+# pair of narration beats so the deterministic floor reads as a story with rhythm, not a
+# stub of "Scene N" labels. (Real per-topic narrative still needs the LLM — this is the
+# template floor, the §K8 honest fallback.)
 _STORY_ARC = [
-    ("Setup", "introduce", "curious"),
-    ("Turning point", "build", "tense"),
-    ("Resolution", "resolve", "joyful"),
-    ("Aftermath", "resolve", "calm"),
-    ("Reflection", "resolve", "calm"),
+    (
+        "Setup",
+        "introduce",
+        "curious",
+        "Let's begin the story of {topic}.",
+        "Here's where it starts.",
+    ),
+    (
+        "Turning point",
+        "build",
+        "tense",
+        "Then {topic} starts to change.",
+        "This is the turning point.",
+    ),
+    (
+        "Resolution",
+        "resolve",
+        "joyful",
+        "Finally, {topic} comes together.",
+        "And that's how it resolves!",
+    ),
+    (
+        "Aftermath",
+        "resolve",
+        "calm",
+        "Afterwards, {topic} settles down.",
+        "A calm, satisfying end.",
+    ),
+    ("Reflection", "resolve", "calm", "Looking back on {topic}.", "What a journey it was."),
 ]
 
 
 def _story_plan(spec: DirectorSpec, P):
     n = max(2, min(spec.scene_count, len(_STORY_ARC)))
+    subj = _subject(spec.topic, spec.style)
+    cartoon = spec.style == "cartoon"
     scenes = []
     for i in range(n):
-        label, purpose, emotion = _STORY_ARC[i]
+        label, purpose, emotion, line1, line2 = _STORY_ARC[i]
         ents = [
             P.Entity(
                 f"t{i}",
@@ -453,16 +520,26 @@ def _story_plan(spec: DirectorSpec, P):
                 appearance={"text": f"Scene {i + 1} · {label}", "font": 0.5},
                 place=at("top"),
             ),
-            P.Entity(f"o{i}", _subject(spec.topic, spec.style), role="hero", place=at("center")),
+            P.Entity(f"o{i}", subj, role="hero", place=at("center")),
         ]
+        # Two shots per scene: establish (pulse the hero) then a beat where the host points
+        # at it — so each scene narrates TWICE and the presenter acts, instead of one line.
+        point = [P.Action("point", "guide", f"o{i}")] if cartoon else []
         shots = [
             P.Shot(
                 "establishing",
                 enter=(f"t{i}", f"o{i}"),
-                say=f"Scene {i + 1}: {label.lower()} of {spec.topic}.",
+                say=line1.format(topic=spec.topic),
                 actions=(P.Action("pulse", f"o{i}"),),
+                hold="short",
+            ),
+            P.Shot(
+                "medium",
+                focus=f"o{i}",
+                say=line2.format(topic=spec.topic),
+                actions=tuple(point),
                 hold="med",
-            )
+            ),
         ]
         scenes.append(
             P.ScenePlan(
@@ -681,6 +758,46 @@ def sanitize_beats(
     return out
 
 
+def parse_marks(raw: str) -> tuple[str, tuple[Mark, ...]]:
+    """Extract inline [concept] markers from narration -> (clean_text, marks).
+
+    'Water turns to [vapor].' -> ('Water turns to vapor.',
+        (Mark(concept='vapor', word='vapor', start=15, end=20),))
+
+    A marker is a balanced [..] whose ] comes before the next [. Drop-don't-repair:
+    empty [] and stray/unbalanced brackets are STRIPPED from the clean text (TTS never
+    speaks a bracket), never patched; nested brackets are unsupported. start/end are
+    offsets into the returned clean text. Entity binding happens later (compile-time)."""
+    if not raw or ("[" not in raw and "]" not in raw):
+        return (raw or ""), ()  # fast path only when NEITHER bracket is present (a lone ] is stray)
+    parts: list[str] = []
+    marks: list[Mark] = []
+    clen = 0  # running length of the clean text built so far
+    i, n = 0, len(raw)
+    while i < n:
+        c = raw[i]
+        if c == "[":
+            j = raw.find("]", i + 1)
+            nxt = raw.find("[", i + 1)
+            if j != -1 and (nxt == -1 or j < nxt):  # a balanced marker
+                word = raw[i + 1 : j].strip()
+                if word:
+                    parts.append(word)
+                    marks.append(Mark(word.lower(), word, clen, clen + len(word)))
+                    clen += len(word)
+                i = j + 1
+                continue
+            i += 1  # stray '[' -> drop
+            continue
+        if c == "]":
+            i += 1  # stray ']' -> drop
+            continue
+        parts.append(c)
+        clen += 1
+        i += 1
+    return "".join(parts), tuple(marks)
+
+
 def parse_beats(data: dict | list) -> list[Beat]:
     arr = data.get("beats", []) if isinstance(data, dict) else data
     if not isinstance(arr, list):
@@ -704,7 +821,8 @@ def parse_beats(data: dict | list) -> list[Beat]:
             if src and dst:  # b["kind"] is the beat kind ("connect"), NOT a connector type
                 out.append(connect(src, dst, "arrow", b.get("label")))
         elif kind == "say" and b.get("text"):
-            out.append(say(b["text"]))
+            clean, marks = parse_marks(b["text"])  # split inline [concept] markers off the text
+            out.append(say(clean, marks))
         elif kind == "clear":
             out.append(clear())
     return out
@@ -716,7 +834,7 @@ def parse_beats(data: dict | list) -> list[Beat]:
 class _LLMStory:
     name = "llm"
 
-    def _complete(self, prompt: str) -> str | None:  # pragma: no cover - network
+    def _complete(self, prompt: str, schema: dict | None = None) -> str | None:  # pragma: no cover
         raise NotImplementedError
 
     def tell(self, spec: DirectorSpec) -> list[Beat]:  # pragma: no cover - network
@@ -731,7 +849,8 @@ class _LLMStory:
             concept_count=spec.concept_count,
             style=spec.style,
         )
-        raw = self._complete(prompt)  # may raise on network error -> plan() reports it
+        # The per-lesson schema's minItems FORCES a full lesson (no 1-2-line truncation).
+        raw = self._complete(prompt, _beat_schema(spec))  # may raise -> plan() reports it
         return parse_beats(json.loads(_strip_json(raw or "{}")))
 
 
@@ -744,12 +863,14 @@ class OllamaStory(_LLMStory):
         self.model = model or os.environ.get("OLLAMA_STORY_MODEL", "qwen2.5:7b")
         self.host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
-    def _complete(self, prompt: str) -> str | None:  # pragma: no cover - network
+    def _complete(self, prompt: str, schema: dict | None = None) -> str | None:  # pragma: no cover
         body = json.dumps(
             {
                 "model": self.model,
                 "stream": False,
-                "format": BEAT_SCHEMA,  # structured outputs: each beat MUST be an object
+                # structured outputs: per-lesson schema (minItems forces a full lesson);
+                # falls back to the base object-schema if none was passed.
+                "format": schema or BEAT_SCHEMA,
                 "messages": [{"role": "user", "content": prompt}],
             }
         ).encode()
@@ -766,7 +887,9 @@ class GeminiStory(_LLMStory):
         self.model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
         self.key = os.environ.get("GEMINI_API_KEY", "")
 
-    def _complete(self, prompt: str) -> str | None:  # pragma: no cover - network
+    def _complete(self, prompt: str, schema: dict | None = None) -> str | None:  # pragma: no cover
+        # Gemini follows the prompt's count guidance well; we keep responseMimeType=json
+        # (its responseSchema dialect differs from Ollama's, so we don't reuse `schema` here).
         if not self.key:
             return None
         url = (

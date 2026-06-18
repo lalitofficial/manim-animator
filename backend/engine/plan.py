@@ -28,6 +28,7 @@ from engine.contracts import (
     Connector,
     Drawable,
     Extent,
+    Mark,
     Relation,
     Thing,
     split_paint_attrs,
@@ -236,6 +237,7 @@ class Shot:
     actions: tuple[Action, ...] = ()
     say: str | None = None  # narration for this shot
     hold: str = "med"  # pause after
+    marks: tuple[Mark, ...] = ()  # [concept] narration↔visual bindings (resolved at compile)
 
 
 @dataclass(frozen=True)
@@ -307,6 +309,42 @@ def _host_entity(spec, emotion: str = "", purpose: str = "") -> Entity:
             "z": 3,
         },
     )
+
+
+def _concept_tokens(concept: str) -> set[str]:
+    """Normalized match tokens for an entity concept: the whole concept + its words."""
+    c = (concept or "").strip().lower()
+    return {t for t in {c, *c.split()} if t}
+
+
+def _resolve_marks(marks: tuple[Mark, ...], entities: list[Entity]) -> list[dict]:
+    """Bind each parsed [concept] mark to a STAGED entity id; drop unmatched (drop-don't-
+    repair). Returns serializable dicts for the say event, so a later choreographer can
+    reveal `entity` when the marked word is spoken. Resolution is authoritative HERE —
+    against the entities actually staged — covering both the lifted-Beats and BYO-plan paths."""
+    if not marks:
+        return []
+    lookup: dict[str, str] = {}
+    for e in entities:
+        if e.kind in ("text", "character"):
+            continue  # markers bind to CONTENT props, never the title or the host (scaffolding)
+        lookup.setdefault(e.id.strip().lower(), e.id)
+        for tok in _concept_tokens(e.concept):
+            lookup.setdefault(tok, e.id)
+    out: list[dict] = []
+    for m in marks:
+        eid = lookup.get(m.concept)
+        if eid:
+            out.append(
+                {
+                    "concept": m.concept,
+                    "word": m.word,
+                    "start": m.start,
+                    "end": m.end,
+                    "entity": eid,
+                }
+            )
+    return out
 
 
 def compile_plan(
@@ -424,7 +462,11 @@ def compile_plan(
                             )
                 yield ev
             if shot.say:
-                yield {"type": "say", "text": shot.say}
+                say_ev: dict = {"type": "say", "text": shot.say}
+                marks = _resolve_marks(shot.marks, entities)  # bind [concept] words to staged ids
+                if marks:
+                    say_ev["marks"] = marks
+                yield say_ev
             for a in sorted(shot.actions, key=lambda a: a.at):
                 if a.verb == "connect" and a.target:
                     # Cartoon is FILM: drop the connector LABEL (narration + the host
@@ -505,7 +547,7 @@ def parse_plan(data: dict, title: str | None = None, style: str | None = None) -
     plan (no `scenes`), so the caller can fall back to flat-Beat parsing."""
     if not isinstance(data, dict) or "scenes" not in data:
         return None
-    from engine.story import _relation
+    from engine.story import _relation, parse_marks
 
     scenes: list[ScenePlan] = []
     for s in data.get("scenes", []):
@@ -523,29 +565,34 @@ def parse_plan(data: dict, title: str | None = None, style: str | None = None) -
             for e in s.get("entities", [])
             if isinstance(e, dict) and e.get("id")
         ]
-        shots = [
-            Shot(
-                framing=sh.get("framing", "wide"),
-                focus=sh.get("focus"),
-                enter=tuple(sh.get("enter", [])),
-                actions=tuple(
-                    Action(
-                        a["verb"],
-                        a["actor"],
-                        a.get("target"),
-                        a.get("params") or {},
-                        a.get("at", 0),
-                        a.get("dur", "med"),
-                    )
-                    for a in sh.get("actions", [])
-                    if isinstance(a, dict) and a.get("verb") in VERBS and a.get("actor")
-                ),
-                say=sh.get("say"),
-                hold=sh.get("hold", "med"),
+        shots: list[Shot] = []
+        for sh in s.get("shots", []):
+            if not isinstance(sh, dict):
+                continue
+            raw_say = sh.get("say")
+            say_text, marks = parse_marks(raw_say) if isinstance(raw_say, str) else (raw_say, ())
+            shots.append(
+                Shot(
+                    framing=sh.get("framing", "wide"),
+                    focus=sh.get("focus"),
+                    enter=tuple(sh.get("enter", [])),
+                    actions=tuple(
+                        Action(
+                            a["verb"],
+                            a["actor"],
+                            a.get("target"),
+                            a.get("params") or {},
+                            a.get("at", 0),
+                            a.get("dur", "med"),
+                        )
+                        for a in sh.get("actions", [])
+                        if isinstance(a, dict) and a.get("verb") in VERBS and a.get("actor")
+                    ),
+                    say=say_text,
+                    hold=sh.get("hold", "med"),
+                    marks=marks,
+                )
             )
-            for sh in s.get("shots", [])
-            if isinstance(sh, dict)
-        ]
         scenes.append(
             ScenePlan(
                 id=s.get("id", f"s{len(scenes)}"),
@@ -576,13 +623,21 @@ def lift_beats(beats: list[Beat], title: str = "lesson", style: str = "cartoon")
     cur_enter: list[str] = []
     cur_actions: list[Action] = []
     cur_say: str | None = None
+    cur_marks: tuple[Mark, ...] = ()
 
     def flush_shot():
-        nonlocal cur_enter, cur_actions, cur_say
+        nonlocal cur_enter, cur_actions, cur_say, cur_marks
         if cur_enter or cur_actions or cur_say:
-            shots.append(Shot(enter=tuple(cur_enter), actions=tuple(cur_actions), say=cur_say))
+            shots.append(
+                Shot(
+                    enter=tuple(cur_enter),
+                    actions=tuple(cur_actions),
+                    say=cur_say,
+                    marks=cur_marks,
+                )
+            )
             cur_enter, cur_actions = [], []
-            cur_say = None  # keep types clean (cur_say is str | None, not a list)
+            cur_say, cur_marks = None, ()  # keep types clean (cur_say is str | None)
 
     def flush_scene():
         nonlocal ents, shots
@@ -633,6 +688,7 @@ def lift_beats(beats: list[Beat], title: str = "lesson", style: str = "cartoon")
             if cur_say is not None:  # a new narration line starts a new shot
                 flush_shot()
             cur_say = b.text
+            cur_marks = b.marks  # carry the [concept] bindings onto this shot
     flush_scene()
     # A gentle emotional ARC: a multi-scene lift lands on a joyful close (a satisfying end);
     # a single scene stays curious. Whiteboard scenes carry no mood.

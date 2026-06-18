@@ -239,6 +239,22 @@ class DrawOp:
 
 
 # --------------------------------------------------------------------------- #
+# Mark: a narration↔visual binding (docs/ROADMAP-story-voice.md §1 — "a named
+# marker is the seam between words and pixels"). Parsed from an inline [concept]
+# token in a `say` string; the brackets are stripped for display/TTS and the
+# binding is recorded so a later choreographer can reveal `entity` when the word
+# is spoken. start/end are char offsets into the CLEAN text (future word-timing).
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class Mark:
+    concept: str  # normalized bracket content (used to match a shown entity)
+    word: str  # the surface word as shown/spoken (brackets removed)
+    start: int  # char offset of `word` in the clean text
+    end: int  # char offset just past `word`
+    entity: str | None = None  # resolved shown-entity id (filled at compile); None = unbound
+
+
+# --------------------------------------------------------------------------- #
 # Beat: Story output (ARCHITECTURE §2, §3). Abstract intent — entities + spatial
 # relation + narration. NO geometry, NO coordinates. Compiled to a Scene.
 # --------------------------------------------------------------------------- #
@@ -252,6 +268,7 @@ class Beat:
     text: str | None = None  # narration (say) or edge label (connect)
     connector_kind: str = "arrow"
     geometry: dict = field(default_factory=dict)  # geometry_attrs for Drawing
+    marks: tuple[Mark, ...] = ()  # [concept] bindings parsed from a `say` (optional)
 
 
 def show(entity: str, concept: str | None = None, relation: Relation | None = None, **geom) -> Beat:
@@ -264,8 +281,8 @@ def connect(src: str, dst: str, kind: str = "arrow", label: str | None = None) -
     return Beat("connect", entity=src, target=dst, connector_kind=kind, text=label)
 
 
-def say(text: str) -> Beat:
-    return Beat("say", text=text)
+def say(text: str, marks: tuple[Mark, ...] = ()) -> Beat:
+    return Beat("say", text=text, marks=marks)
 
 
 def clear() -> Beat:
