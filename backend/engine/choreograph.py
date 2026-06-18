@@ -29,6 +29,20 @@ def _draw_of(entries) -> dict[str, str]:
     return out
 
 
+def _op_center(op: dict) -> tuple[float, float] | None:
+    """The board-space center of a draw op (bbox midpoint of its strokes; else its label)."""
+    xs: list[float] = []
+    ys: list[float] = []
+    for s in op.get("strokes") or []:
+        for pt in s.get("points") or []:
+            xs.append(pt[0])
+            ys.append(pt[1])
+    if xs:
+        return (round((min(xs) + max(xs)) / 2, 3), round((min(ys) + max(ys)) / 2, 3))
+    lp = op.get("label_pos")
+    return (lp[0], lp[1]) if lp else None
+
+
 def choreograph(tl: Timeline, *, cinematic: bool = True, host: str = "guide") -> Timeline:
     """Anchor each narrated concept's draw (+ a host point) to its `[concept]` marker.
 
@@ -72,4 +86,42 @@ def choreograph(tl: Timeline, *, cinematic: bool = True, host: str = "guide") ->
                         dur_ms=600,
                     )
                 )
-    return replace(tl, entries=tuple(entries) + tuple(points))
+
+    # 3) the CAMERA follows the narrated concept: a gentle pan/zoom to each, anchored to its
+    # marker (Phase 6). Non-blocking — the scheduler supersedes an in-flight move, so it reads
+    # as a follow. cinematic-gated (the still/calm board stays a wide static frame).
+    cams = _follow_cameras(tl, entries, anchor) if cinematic else []
+    return replace(tl, entries=tuple(entries) + tuple(points) + tuple(cams))
+
+
+def _follow_cameras(tl: Timeline, entries: list[TLEntry], anchor: dict[str, str]) -> list[TLEntry]:
+    """A gentle camera focus on each anchored concept, anchored to its marker. The focus window
+    is a soft ~62% zoom (a follow, not a tight crop), clamped on-board."""
+    board = tl.meta.get("board") or {"w": 14.0, "h": 8.0}
+    bw, bh = float(board["w"]), float(board["h"])
+    vw = round(bw * 0.62, 3)
+    vh = round(vw * bh / bw, 3)
+    mx, my = bw / 2 - vw / 2, bh / 2 - vh / 2  # max center offset that keeps the window on-board
+    cams: list[TLEntry] = []
+    seen: set[str] = set()
+    for e in entries:
+        if e.id not in anchor or anchor[e.id] in seen:
+            continue
+        center = _op_center(e.payload.get("op") or {})
+        if center is None:
+            continue
+        seen.add(anchor[e.id])
+        cx = max(-mx, min(mx, center[0]))
+        cy = max(-my, min(my, center[1]))
+        cams.append(
+            TLEntry(
+                id=f"cam_{anchor[e.id]}",
+                track="camera",
+                kind="camera",
+                blocking=False,
+                payload={"x": round(cx, 3), "y": round(cy, 3), "w": vw, "h": vh, "ms": 650},
+                at=anchor[e.id],
+                dur_ms=650,
+            )
+        )
+    return cams

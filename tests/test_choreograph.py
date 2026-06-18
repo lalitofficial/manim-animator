@@ -79,6 +79,42 @@ def test_skips_concepts_with_no_draw():
     assert {p.payload["target"] for p in pts} == {"sun"}  # ghost isn't drawn -> no point, no anchor
 
 
+def test_camera_follows_each_narrated_concept():
+    events = [
+        {"type": "start", "topic": "sky", "style": "cartoon", "board": {"w": 14.0, "h": 8.0}},
+        {"type": "draw", "op": {"id": "guide", "source": "character", "z": 3}},
+        {
+            "type": "draw",
+            "op": {"id": "sun", "source": "icon", "strokes": [{"points": [[0, 0], [1, 0]]}]},
+        },
+        {
+            "type": "say",
+            "text": "The sun shines.",
+            "marks": [{"entity": "sun", "word": "sun", "start": 4, "end": 7}],
+        },
+    ]
+    tl = choreograph.choreograph(_tl(events))
+    cams = [e for e in tl.entries if e.kind == "camera"]
+    assert cams and cams[0].at == "m:sun"  # camera anchored to the concept's word
+    p = cams[0].payload
+    assert abs(p["x"] - 0.5) < 0.1 and abs(p["y"]) < 0.1  # centered on the sun's bbox
+    assert 0 < p["w"] <= 14.0 and 0 < p["h"] <= 8.0  # window stays on-board
+
+
+def test_no_follow_camera_when_not_cinematic():
+    events = [
+        {"type": "start", "board": {"w": 14.0, "h": 8.0}},
+        {"type": "draw", "op": {"id": "sun", "strokes": [{"points": [[0, 0]]}]}},
+        {
+            "type": "say",
+            "text": "sun",
+            "marks": [{"entity": "sun", "word": "sun", "start": 0, "end": 3}],
+        },
+    ]
+    tl = choreograph.choreograph(_tl(events), cinematic=False)
+    assert not any(e.kind == "camera" for e in tl.entries)  # a diagram stays a static wide frame
+
+
 def test_host_points_only_when_a_host_is_present():
     tl = choreograph.choreograph(_tl(_events(host=False)))  # no character on stage
     assert not any(e.kind == "action" for e in tl.entries)  # nothing to point WITH
