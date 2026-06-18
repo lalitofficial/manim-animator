@@ -248,7 +248,17 @@ ICON_RECIPES: dict[str, dict] = {
         "parts": [
             {
                 "prim": "polyline",
-                "points": [[0.0, 0.7], [0.4, -0.1], [0.0, -0.55], [-0.4, -0.1]],
+                # a TEARDROP: sharp point at the top, round belly at the bottom (not a diamond)
+                "points": [
+                    [0.0, 0.72],
+                    [0.3, 0.05],
+                    [0.42, -0.28],
+                    [0.3, -0.52],
+                    [0.0, -0.6],
+                    [-0.3, -0.52],
+                    [-0.42, -0.28],
+                    [-0.3, 0.05],
+                ],
                 "closed": True,
                 "fill": "#5b8def",
                 "stroke": "#2f6fd0",

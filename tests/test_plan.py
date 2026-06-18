@@ -194,22 +194,25 @@ def test_joyful_host_carries_a_motion_clip():
     assert chost["op"].get("loop") is True and chost["op"].get("frames")
 
 
-def test_per_scene_casting_changes_the_host():
-    """The host is recast PER SCENE from the scene's setting/content — a story that moves
-    through settings changes who's on stage (lab→scientist, field→farmer)."""
+def test_host_is_consistent_across_scenes():
+    """The SAME presenter hosts every scene — cast ONCE from the LESSON topic, not recast per
+    scene from incidental narration (which morphed the teacher into e.g. a pirate when a scene
+    mentioned 'ocean'). With no per-scene emotion, the host renders identically across scenes."""
     lp = LessonPlan(
-        "Food",
+        "the water cycle",
         (
-            ScenePlan("s0", setting="inside the science lab", shots=(Shot(say="study"),)),
-            ScenePlan("s1", setting="out in the farm field", shots=(Shot(say="grow"),)),
+            ScenePlan("s0", shots=(Shot(say="clouds form"),)),
+            ScenePlan("s1", setting="out at the ocean", shots=(Shot(say="rivers reach the sea"),)),
         ),
     )
-    evs = list(compile_plan(lp, direct("food", style="cartoon"), BOARD))
+    evs = list(compile_plan(lp, direct("the water cycle", style="cartoon"), BOARD))
     hosts = [e for e in evs if e["type"] == "draw" and e["op"]["id"] == "guide"]
     assert len(hosts) == 2
-    assert hosts[0]["op"]["strokes"] != hosts[1]["op"]["strokes"]  # scientist ≠ farmer costume
-    # the injected host is a neutral presenter; the SCENE recasts it
-    assert _host_entity(direct("food", style="cartoon")).concept == "presenter"
+    assert (
+        hosts[0]["op"]["strokes"] == hosts[1]["op"]["strokes"]
+    )  # same presenter, no mid-lesson morph
+    # the injected host is the neutral presenter; a topic that fits a role casts it consistently
+    assert _host_entity(direct("the water cycle", style="cartoon")).concept == "presenter"
 
 
 def test_lift_beats_gives_cartoon_an_emotional_arc():

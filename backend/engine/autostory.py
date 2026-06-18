@@ -109,12 +109,14 @@ class AutoregressiveStory:
             '  {"kind":"say","text":"one sentence of narration"}\n'
             f"{story._RELATION_PROMPT}\n"
             "RULES:\n"
-            "- Introduce 1-3 NEW drawable concepts THIS scene; you may reference already-drawn ones "
-            "but do NOT re-show them.\n"
-            f"- every show.concept is a CONCRETE, DRAWABLE noun. PREFER this vocabulary:\n  {vocab}\n"
+            f'- STAY STRICTLY ON TOPIC: every concept must be a real, specific part of "{spec.topic}" '
+            "— never an unrelated object. (For 'the water cycle': sun, cloud, rain, river, ocean — "
+            "NOT a watermelon or any random item.)\n"
+            "- Introduce 1-3 NEW drawable concepts THIS scene; reference already-drawn ones but do "
+            "NOT re-show them.\n"
+            f"- every concept is a CONCRETE, DRAWABLE noun; prefer ones with an icon here:\n  {vocab}\n"
             "- 2-4 say lines; in each, wrap a shown concept's word in [brackets] (its id/concept).\n"
-            "- CONTINUE the story coherently from THE LESSON SO FAR — advance it, never restart or "
-            "repeat earlier scenes.\n"
+            "- CONTINUE coherently from THE LESSON SO FAR — advance it, never restart or repeat.\n"
             "Output ONLY the JSON object."
         )
 

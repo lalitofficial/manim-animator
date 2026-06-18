@@ -483,12 +483,11 @@ def compile_plan(
         # (a scene can stage its own distinct cast — they must NOT all collapse to one role).
         entities = list(scene.entities)
         if style == palette.CARTOON and not any(e.kind == "character" for e in entities):
-            scene_topic = (
-                scene.setting or " ".join(s.say for s in scene.shots if s.say) or lesson.title
-            )
+            # Cast the host from the LESSON topic ONCE so the SAME presenter hosts every scene —
+            # per-scene casting morphed the teacher (e.g. into a pirate when a scene said 'ocean').
             host = _host_entity(spec, emotion, purpose)
             host = replace(
-                host, concept=character.cast_concept(host.concept, scene_topic, spec.mode)
+                host, concept=character.cast_concept(host.concept, lesson.title, spec.mode)
             )
             entities.insert(0, host)
         chars = {e.id for e in entities if e.kind == "character"}

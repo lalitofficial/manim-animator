@@ -4,7 +4,9 @@
 #   bash tools/observe.sh "how a volcano erupts" story  ->  build/sheet.jpg
 set -e
 cd "$(dirname "$0")/.."
-export PATH="$HOME/.local/bin:$PATH" STORY_PROVIDER=template
+export PATH="$HOME/.local/bin:$PATH"
+export STORY_PROVIDER="${STORY_PROVIDER:-template}"  # set STORY_PROVIDER=auto STORY_METHOD=autoregressive for a real LLM lesson
+export STORY_METHOD="${STORY_METHOD:-}"
 TOPIC="${1:-how a volcano erupts}"
 MODE="${2:-story}"
 mkdir -p build
