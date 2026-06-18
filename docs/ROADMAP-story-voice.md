@@ -429,10 +429,19 @@ each concept *as its word is spoken*, the host points at it, and its mouth moves
 - *Two renderers (L9):* `board/engine.js` (clear 800 + post-say dwell) and Studio `board.js` (clear 750, no
   dwell, fixed say-estimate, abort signal) intentionally differ — verify BOTH.
 
-**Remaining (not built — blocked/deferred):**
-- *5b voice quality:* local Kokoro/HeadTTS audio-gen + word/viseme timestamps → resolve marker `t` + drive
-  mouths precisely. Needs the model installed; `VOICE_PROVIDER=kokoro|headtts` slot + `resolve_voice()` are ready.
-- *6 camera-follows-concept:* anchor a camera focus to each concept marker (needs the concept's placement; cleanest
-  at compile_plan / from the draw op bbox). Risk: too much motion — gate it.
-- *7 streaming:* per-scene timelines over SSE (the deferred optimization); the scheduler already plays a whole
-  timeline, so this is a delivery change.
+**Since first log — also built & committed:**
+- *Phase 6 — camera-follows-concept* (`944cc81`): choreograph emits a gentle, cinematic-gated camera focus on
+  each narrated concept, anchored to its marker (the camera pans to follow the words). Backend-tested. *Motion
+  risk to eyeball: may feel busy — if so, tune the zoom or gate harder.*
+- *Phase 5 — word-boundary timing* (`aa92462`): `speak()` forwards `onboundary`; a concept reveals the instant
+  its word is spoken (closed-loop), estimate as fallback + final flush. **Removes the open-loop debt** for the
+  free Web-Speech path. Both renderers; build/Biome green. (Mouth visemes stay estimate-based — sub-word.)
+
+**Remaining (only these — one blocked, one correctly deferred):**
+- *5b voice quality (BLOCKED on a model install):* local Kokoro/HeadTTS audio-gen → real audio file + word/viseme
+  timestamps → resolve marker `t` + drive mouths precisely. The whole surface is ready (`VOICE_PROVIDER=kokoro|
+  headtts`, `resolve_voice()`, the mouth slot, the marker `t` field) — it just needs the model installed + a small
+  server step to generate the audio and fill marker times. Not done autonomously (heavy dep, unverifiable here).
+- *7 streaming (DEFERRED by the roadmap's own rule):* per-scene timelines over SSE. It's an optimization on top of
+  a *working, verified* scheduler — which isn't browser-verified yet — and the latency cost is *planning*, not
+  delivery. Build it after the scheduler is confirmed and once per-scene planning exists.
