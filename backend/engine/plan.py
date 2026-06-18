@@ -279,14 +279,63 @@ class LessonPlan:
 # --------------------------------------------------------------------------- #
 # Compile: LessonPlan → the timed event stream (the AnimationPlan, serialized).
 # --------------------------------------------------------------------------- #
-def _camera_focus(p, board: Board, ms: int = 700) -> dict:
-    vw = min(max(p.w * 1.7, board.w * 0.46), board.w * 0.86)
+# Shot SIZE = emotional distance (Katz, *Film Directing Shot by Shot*): framing sets the camera
+# WIDTH as a fraction of the board — a close-up is INTIMACY, not a crop of the prop. wide/
+# establishing = the whole stage (low intimacy); medium = the actor + its surroundings; close =
+# tight on one actor (high intimacy). This replaces "zoom to the prop's own width".
+_FRAMING_SCALE = {"establishing": 1.0, "wide": 1.0, "medium": 0.6, "close": 0.4}
+
+
+def _camera_shot(framing: str, p, board: Board, cut: bool) -> dict:
+    """One shot's camera frame. Framing SIZE picks the width (a board fraction = emotional
+    distance); the focus placement `p` (or board center) picks where. A CUT is instant (ms=0 —
+    comparing a new subject/POV); otherwise a smooth push-in/pan (intensifying one subject). The
+    focal subject is never cropped below its own width (+ margin)."""
+    vw = board.w * _FRAMING_SCALE.get(framing, 1.0)
+    if p is not None:
+        vw = max(vw, p.w * 1.3)  # the subject always fits
+    vw = min(vw, board.w)
     vh = vw * (board.h / board.w)
     vw, vh = round(vw, 3), round(vh, 3)
-    bx, by = board.hw - vw / 2, board.hh - vh / 2
-    cx = max(-bx, min(bx, p.x))
-    cy = max(-by, min(by, p.y))
+    cx, cy = (p.x, p.y) if p is not None else (0.0, 0.0)
+    bx, by = board.hw - vw / 2, board.hh - vh / 2  # keep the rect fully on-board
+    cx = max(-bx, min(bx, cx))
+    cy = max(-by, min(by, cy))
+    ms = 0 if cut else 700
     return {"type": "camera", "x": round(cx, 4), "y": round(cy, 4), "w": vw, "h": vh, "ms": ms}
+
+
+def _effective_framing(
+    shot: Shot, shi: int, emotion: str, to_draw, pmap, framable
+) -> tuple[str, str | None]:
+    """Resolve a shot's (framing, focus) for the camera, INFERRING them when unset so beat-derived
+    lessons (whose shots default to 'wide') still get real shot sizes. An explicit framing/focus
+    wins; otherwise the opening shot establishes the stage, and a later shot frames the focal prop
+    it reveals (close when the beat is tense, else medium). An establishing/wide shot frames the
+    whole stage (no single subject). Returns (framing, focus_id | None)."""
+    focus_id = shot.focus
+    if not focus_id:  # the prop this shot reveals, else what a point/look calls attention to
+        focus_id = next((e for e in to_draw if e in framable and e in pmap), None)
+        if focus_id is None:
+            focus_id = next(
+                (
+                    a.target
+                    for a in shot.actions
+                    if a.verb in ("point", "look") and a.target in pmap
+                ),
+                None,
+            )
+    framing = shot.framing
+    if framing == "wide":  # default/unset → infer from position + mood
+        if shi == 0 or focus_id is None:
+            framing = "establishing"
+        elif emotion == "tense":
+            framing = "close"
+        else:
+            framing = "medium"
+    if framing in ("establishing", "wide"):
+        focus_id = None  # an establishing shot frames the whole stage, not one subject
+    return framing, focus_id
 
 
 def _camera_full(board: Board, ms: int = 900) -> dict:
@@ -406,7 +455,7 @@ def compile_plan(
         if bg is not None:
             yield {"type": "background", **bg, "emotion": emotion}
         if cinematic:
-            yield _camera_full(board)
+            yield _camera_full(board, ms=0 if si else 900)  # hard-cut to the (new) scene's stage
 
         # The director adds a host to any cartoon scene without one — emotion sets its
         # face, the scene's purpose sets its body language. We CAST that injected host per
@@ -424,6 +473,7 @@ def compile_plan(
             )
             entities.insert(0, host)
         chars = {e.id for e in entities if e.kind == "character"}
+        framable = {e.id for e in entities if e.kind == "prop"}  # camera-focus subjects (content)
 
         # Measure + STAGE every entity in the scene (cast + props) as one composition.
         things, tmap, dmap = [], {}, {}
@@ -444,14 +494,23 @@ def compile_plan(
         explicit = {eid for sh in scene.shots for eid in sh.enter}
         opening = [e.id for e in entities if e.id not in explicit]
 
+        # Camera state (per scene): the subject we last framed + whether we're wide — so a NEW
+        # subject hard-cuts and the SAME subject pushes in (Katz: cut to compare POVs, move to
+        # intensify one). The scene opened on a full establishing frame.
+        prev_focus: str | None = None
+        cam_full = True
         shots = scene.shots or (Shot(enter=tuple(e.id for e in entities)),)
         for shi, shot in enumerate(shots):
             to_draw = (opening if shi == 0 else []) + [e for e in shot.enter if e not in opening]
             if cinematic:
-                if shot.focus and shot.focus in pmap:
-                    yield _camera_focus(pmap[shot.focus], board)
-                elif shot.framing in ("wide", "establishing"):
-                    yield _camera_full(board)
+                framing, focus_id = _effective_framing(shot, shi, emotion, to_draw, pmap, framable)
+                if focus_id is None:  # an establishing/wide shot frames the whole stage
+                    if not cam_full:
+                        yield _camera_full(board)  # pull back out (smooth)
+                        cam_full, prev_focus = True, None
+                else:  # frame a subject — CUT to a new one, push IN on the same one
+                    yield _camera_shot(framing, pmap[focus_id], board, cut=focus_id != prev_focus)
+                    cam_full, prev_focus = False, focus_id
             for eid in to_draw:
                 p = pmap.get(eid)
                 if p is None:

@@ -255,6 +255,58 @@ def test_parse_plan_from_json_and_rejects_beats():
     assert parse_plan({"beats": [{"kind": "show", "entity": "x"}]}) is None
 
 
+# --- camera as shot grammar (Katz) ------------------------------------------ #
+def test_framing_size_is_emotional_distance():
+    """Shot SIZE = emotional distance: close is tighter than medium is tighter than the full
+    establishing stage. A small subject lets the framing scale dominate the fit-floor."""
+    from types import SimpleNamespace
+
+    from engine.plan import _camera_shot
+
+    p = SimpleNamespace(x=0.0, y=0.0, w=1.0)
+    est = _camera_shot("establishing", p, BOARD, cut=True)
+    med = _camera_shot("medium", p, BOARD, cut=False)
+    close = _camera_shot("close", p, BOARD, cut=False)
+    assert close["w"] < med["w"] < est["w"] == BOARD.w  # tighter framing = more intimate
+    assert est["ms"] == 0 and med["ms"] > 0  # a cut is instant; a push-in is a smooth move
+
+
+def _cut_plan() -> LessonPlan:
+    # one scene, three shots: introduce cloud (medium), push in on cloud (close, SAME subject),
+    # then cut to rain (close, NEW subject).
+    return LessonPlan(
+        "Rain",
+        (
+            ScenePlan(
+                "s",
+                setting="the sky",
+                cast=("guide",),
+                entities=(
+                    Entity("guide", "presenter", "character"),
+                    Entity("cloud", "cloud", role="hero"),
+                    Entity("rain", "raindrop", role="particle"),
+                ),
+                shots=(
+                    Shot(framing="medium", focus="cloud", enter=("cloud",), say="A cloud."),
+                    Shot(framing="close", focus="cloud", say="Look closer."),
+                    Shot(framing="close", focus="rain", enter=("rain",), say="Now rain."),
+                ),
+            ),
+        ),
+    )
+
+
+def test_camera_cuts_on_new_subject_and_pushes_in_on_the_same():
+    """Katz's cut-vs-move: a NEW subject hard-cuts (ms=0); the SAME subject tightening is a
+    smooth push-in (ms>0). Bookend full-frame establish/pull-back cameras are excluded."""
+    evs = list(compile_plan(_cut_plan(), SPEC, BOARD))
+    shot_cams = [
+        e for e in evs if e["type"] == "camera" and not (e["w"] == BOARD.w and e["h"] == BOARD.h)
+    ]
+    assert len(shot_cams) == 3
+    assert [c["ms"] == 0 for c in shot_cams] == [True, False, True]  # cut, push-in, cut
+
+
 def test_parse_plan_drops_unknown_verbs():
     lp = parse_plan(
         {

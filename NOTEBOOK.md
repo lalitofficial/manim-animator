@@ -844,3 +844,24 @@ the scheduler/choreographer/markers are Python-tested; the board just resolves a
 most of the risk surface IS verified. (4) **Open-loop timing is the known debt** — draw-while-talking + the
 mouth ride the say's *estimated* duration (Web Speech gives no real timing); precise alignment is the
 deferred Phase-5 local-TTS word-boundary work, not a bug. Diagnosis guide: roadmap §12.
+
+**O9. The camera is a SHOT GRAMMAR, not a box-zoom — and the engine already had the staging, just
+not the direction (2026-06-18).** First step of the "diagram-animator → cartoon" pivot. *Researched the
+craft before coding* — of five strands, only **film direction** (Katz, *Film Directing Shot by Shot*;
+Glebas, *Directing the Story*) and **AnimatedDrawings** survived 3-vote adversarial verification; Disney's
+12 principles, McCloud's panel transitions, and the story-spine got NO primary citations, so they're
+DIRECTION not fact (re-source before they drive architecture). Katz's verified rules are small + deterministic:
+**shot SIZE = emotional distance** (a close-up is intimacy, NOT a crop of the prop); **cut to compare two
+POVs / move to intensify one**; the 180° line is a half-plane test. Applied to `compile_plan`: replaced
+"focus-or-full" (a fixed 1.7× the prop's *own* width) with a framing→board-fraction ladder (`_FRAMING_SCALE`
+establishing=1.0 / medium=0.6 / close=0.4) + `_camera_shot` that **hard-cuts (ms=0) to a new focus subject
+and pushes-in (ms>0) on the same one**, plus `_effective_framing` that INFERS a framing+focus for
+beat-derived shots (which all default to `wide`) so real Ollama lessons get varied shot sizes instead of flat
+full frames. *Why it was cheap:* the screenplay grammar (`Shot.framing` wide|medium|close, `ScenePlan`,
+`VERBS`, emotion/purpose) ALREADY existed — the gap was the compiler, not missing structure. Two gotchas
+banked: **(a) a deep-research agent FABRICATED a repo quote** — it echoed my own brief's phrase ("the compiler
+flattens the screenplay into a concept-map") back and attributed it to plan.py's docstring; `grep` finds it
+nowhere. Always verify a load-bearing repo quote against the actual file. **(b) There are now TWO camera
+subsystems** — `compile_plan` shot-framing (this change) AND `choreograph._follow_cameras` (concept-follow on
+the timeline path); both feed the live board and will FIGHT until unified. Next step (#1b): make the
+shot-grammar the camera authority and demote concept-follow to "a medium on the spoken concept."
