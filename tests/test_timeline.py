@@ -204,3 +204,13 @@ def test_to_dict_payload_is_verbatim():
     op = {"id": "sun", "source": "icon", "z": 1, "strokes": [{"points": [[0, 0]]}]}
     tl = timeline.from_events([{"type": "draw", "op": op}])
     assert timeline.to_dict(tl)["entries"][0]["payload"]["op"] == op  # payload survives intact
+
+
+def test_timeline_lesson_end_to_end_is_a_valid_timeline():
+    from engine import stream
+
+    d = stream.timeline_lesson("the water cycle", mode="learn", generate=False)
+    assert set(d) == {"version", "meta", "markers", "entries"}
+    assert d["meta"].get("topic") and d["entries"]  # a real, populated timeline
+    # the template emits no [concept] markers, so choreograph is a no-op: nothing is anchored
+    assert all(e["at"] == "" for e in d["entries"])  # degenerate path == today's queue

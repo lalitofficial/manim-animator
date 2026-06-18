@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from engine import director, plan, story
+from engine import choreograph, director, plan, story, timeline
 from engine.contracts import Board
 
 
@@ -37,3 +37,23 @@ def stream_lesson(
     r = story.plan_lesson(topic, spec)
     prov = {"requested": r.requested, "used": r.used, "fallback": r.fallback, "reason": r.reason}
     yield from plan.compile_plan(r.plan, spec, board, generate, provenance=prov)
+
+
+def timeline_lesson(
+    topic: str,
+    mode: str = "learn",
+    board: Board | None = None,
+    generate: bool = True,
+    spec=None,
+    beats=None,
+) -> dict:
+    """The lesson as a CHOREOGRAPHED Timeline — the board scheduler's input (Phase 2b/3).
+
+    Same planning as stream_lesson, then: events -> Timeline (from_events, the anti-rewrite
+    adapter) -> choreograph (concept draws + host points anchored to narration markers, cinematic
+    only; a no-op otherwise). Serialized via timeline.to_dict for the wire. The degenerate path
+    (no markers / not cinematic) yields a timeline that plays identically to the current queue."""
+    spec = spec if spec is not None else director.direct(topic, mode=mode)
+    events = list(stream_lesson(topic, mode, board, generate, spec, beats))
+    tl = choreograph.choreograph(timeline.from_events(events), cinematic=spec.cinematic)
+    return timeline.to_dict(tl)
