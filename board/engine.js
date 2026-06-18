@@ -443,39 +443,102 @@ function applyAction(ev) {
   }
 }
 
-async function play(events) {
-  for (const ev of events) {
-    if (ev.type === 'start') {
-      halfW = ev.board.w / 2;
-      halfH = ev.board.h / 2;
-      pacing = ev.pacing || pacing;
-      style = ev.style || style;
-      board.classList.toggle('cartoon', style === 'cartoon');
-      showProvenance(ev.story);
-      board.setAttribute('viewBox', `0 0 ${ev.board.w * PX} ${ev.board.h * PX}`);
-      camSeq++;
-      clearBoard();
-    } else if (ev.type === 'background') {
+function applyStart(s) {
+  halfW = s.board.w / 2;
+  halfH = s.board.h / 2;
+  pacing = s.pacing || pacing;
+  style = s.style || style;
+  board.classList.toggle('cartoon', style === 'cartoon');
+  showProvenance(s.story);
+  board.setAttribute('viewBox', `0 0 ${s.board.w * PX} ${s.board.h * PX}`);
+  camSeq++;
+  clearBoard();
+}
+
+// Dispatch one event to its handler. Returns a Promise to AWAIT for blocking events
+// (say/draw/connector/hold/clear) or undefined for fire-and-continue (camera/action/…).
+// The single per-event seam shared by the queue (play) and the scheduler (playTimeline).
+function dispatch(ev) {
+  switch (ev.type) {
+    case 'start':
+      applyStart(ev);
+      return;
+    case 'background':
       drawBackground(ev);
-    } else if (ev.type === 'camera') {
+      return;
+    case 'camera':
       animateCamera(ev, ev.ms);
-    } else if (ev.type === 'say') {
-      caption.textContent = ev.text;
-      await speak(ev.text);
-    } else if (ev.type === 'action') {
+      return;
+    case 'action':
       applyAction(ev);
-    } else if (ev.type === 'hold') {
-      await sleep(ev.ms || 0);
-    } else if (ev.type === 'draw' || ev.type === 'connector') {
-      await drawOp(ev.op);
-    } else if (ev.type === 'clear') {
-      await sleep(800);
-      camSeq++;
-      clearBoard();
-    } else if (ev.type === 'done') {
+      return;
+    case 'say':
+      caption.textContent = ev.text;
+      return speak(ev.text);
+    case 'hold':
+      return sleep(ev.ms || 0);
+    case 'draw':
+    case 'connector':
+      return drawOp(ev.op);
+    case 'clear':
+      return (async () => {
+        await sleep(800);
+        camSeq++;
+        clearBoard();
+      })();
+    case 'done':
       caption.textContent += '  ✓';
       showSummary(ev.summary);
+      return;
+    default:
+      return;
+  }
+}
+
+// The master-clock SCHEDULER (Phase 2b): play a choreographed Timeline. The SPINE (entries with
+// at==="" — say + sequential draws) plays exactly like the queue with self-correcting awaits, so a
+// degenerate (un-choreographed) timeline is identical to today. A choreographed entry (at==="m:x")
+// is fired DURING its owning say at the spoken word's proportional moment — draw-while-talking.
+async function playTimeline(tl) {
+  applyStart(tl.meta || {});
+  const markByName = {};
+  for (const m of tl.markers || []) {
+    markByName[m.name] = m;
+  }
+  const anchoredBySay = {}; // say entry id -> [{ e, m }] fired during that say
+  for (const e of tl.entries || []) {
+    const m = e.at ? markByName[e.at] : null;
+    if (m && m.entry) {
+      if (!anchoredBySay[m.entry]) {
+        anchoredBySay[m.entry] = [];
+      }
+      anchoredBySay[m.entry].push({ e, m });
     }
+  }
+  for (const e of tl.entries || []) {
+    if (e.at) {
+      continue; // anchored entries are fired by their owning say, not in the spine
+    }
+    const ev = { type: e.kind, ...e.payload };
+    if (e.kind === 'say') {
+      caption.textContent = ev.text || '';
+      const durMs = estimateSpeechMs(ev.text || '');
+      const tlen = Math.max(1, (ev.text || '').length);
+      for (const { e: ae, m } of anchoredBySay[e.id] || []) {
+        const at = Math.round(Math.min(0.92, (m.char_start || 0) / tlen) * durMs);
+        setTimeout(() => dispatch({ type: ae.kind, ...ae.payload }), at);
+      }
+      await speak(ev.text || '');
+    } else {
+      const p = dispatch(ev);
+      if (p) {
+        await p;
+      }
+    }
+  }
+  if (tl.meta && tl.meta.done) {
+    caption.textContent += '  ✓';
+    showSummary(tl.meta.done);
   }
 }
 
@@ -529,10 +592,10 @@ async function teach() {
   caption.textContent = 'Planning…';
   try {
     const res = await fetch(
-      `/api/engine/lesson?topic=${encodeURIComponent(topic)}&mode=${encodeURIComponent(mode)}&audience=${encodeURIComponent(audience)}&style=${encodeURIComponent(style)}`,
+      `/api/engine/timeline?topic=${encodeURIComponent(topic)}&mode=${encodeURIComponent(mode)}&audience=${encodeURIComponent(audience)}&style=${encodeURIComponent(style)}`,
     );
     const data = await res.json();
-    await play(data.events);
+    await playTimeline(data.timeline);
   } catch (err) {
     caption.textContent = `Error: ${err}`;
   } finally {

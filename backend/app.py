@@ -274,6 +274,36 @@ def engine_lesson(
     return {"topic": topic, "spec": to_dict(spec), "events": list(stream_lesson(topic, spec=spec))}
 
 
+@app.get("/api/engine/timeline")
+def engine_timeline(
+    topic: str = "the water cycle",
+    mode: str = "learn",
+    audience: str | None = None,
+    depth: str | None = None,
+    tone: str | None = None,
+    energy: str | None = None,
+    density: str | None = None,
+    style: str | None = None,
+):
+    """Director -> Story -> engines -> CHOREOGRAPHED Timeline (Phase 2b/3): the board scheduler's
+    input. Same hermetic defaults as /lesson; concept draws are anchored to narration markers so
+    the picture reveals as it is spoken (a no-op, == /lesson playback, when there are no markers)."""
+    from engine.director import direct, to_dict
+    from engine.stream import timeline_lesson
+
+    spec = direct(
+        topic,
+        mode=mode,
+        audience=audience,
+        depth=depth,
+        tone=tone,
+        energy=energy,
+        density=density,
+        style=style,
+    )
+    return {"topic": topic, "spec": to_dict(spec), "timeline": timeline_lesson(topic, spec=spec)}
+
+
 @app.get("/api/engine/script-prompt")
 def engine_script_prompt(
     topic: str = "the water cycle",

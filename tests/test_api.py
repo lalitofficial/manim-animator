@@ -65,6 +65,16 @@ def test_engine_lesson_honors_mode(client):
     assert body["spec"]["mode"] == "story"  # the Director spec is surfaced
 
 
+def test_engine_timeline_endpoint(client):
+    r = client.get("/api/engine/timeline", params={"topic": "the water cycle", "mode": "learn"})
+    assert r.status_code == 200
+    tl = r.json()["timeline"]
+    assert set(tl) == {"version", "meta", "markers", "entries"} and tl["version"] == 1
+    assert tl["meta"].get("topic") and tl["entries"]  # a real, populated timeline for the scheduler
+    # template narration carries no [concept] markers -> degenerate (everything sequential)
+    assert all(e["at"] == "" for e in tl["entries"])
+
+
 def test_engine_director_endpoint(client):
     r = client.get("/api/engine/director", params={"topic": "x", "audience": "child"})
     assert r.status_code == 200
