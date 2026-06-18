@@ -27,6 +27,8 @@ let gradSeq = 0;
 let voices = [];
 let selectedVoice = null;
 let voicePromise = null;
+let mouthData = {}; // op.id -> { viseme: [strokes] } for the host's swappable mouth slot
+let mouthTimers = [];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -337,7 +339,72 @@ async function drawOp(op) {
     playClip(reveals, op, maxMs);
   }
 
+  // The mouth SLOT: keep the viseme shapes so lipSync() can flip them during speech.
+  if (op.mouths) {
+    mouthData[op.id] = op.mouths;
+    renderMouth(op.id, 'rest');
+  }
+
   await sleep(maxMs);
+}
+
+// ── Lip-sync (Phase 4b) — drive the host's mouth slot from the spoken text. Web Speech gives
+// no audio, so we ESTIMATE visemes from the characters and spread them over the say's duration
+// (the bootstrap path; real word/viseme timing arrives with Phase 5 / a local TTS).
+function visemeFor(ch) {
+  const c = (ch || ' ').toLowerCase();
+  if ('aá'.includes(c)) return 'wide';
+  if (c === 'e') return 'mid';
+  if ('iy'.includes(c)) return 'narrow';
+  if ('ouw'.includes(c)) return 'round';
+  if ('mbp'.includes(c)) return 'closed';
+  if (/[a-z]/.test(c)) return 'narrow';
+  return 'rest';
+}
+
+function buildVisemes(text, durMs) {
+  const chars = [...(text || '')];
+  const n = Math.max(1, Math.min(chars.length, Math.floor(durMs / 110)));
+  const cues = [];
+  let last = null;
+  for (let i = 0; i < n; i++) {
+    const v = visemeFor(chars[Math.floor((i / n) * chars.length)]);
+    if (v !== last) {
+      cues.push([Math.round((i / n) * durMs), v]);
+      last = v;
+    }
+  }
+  return cues;
+}
+
+function renderMouth(id, viseme) {
+  const data = mouthData[id];
+  if (!data || !data[viseme]) return;
+  const sel = window.CSS && CSS.escape ? CSS.escape(id) : id;
+  const group = board.querySelector(`[data-opid="${sel}"]`);
+  if (!group) return;
+  let slot = group.querySelector('.mouth-slot');
+  if (!slot) {
+    slot = document.createElementNS(SVG_NS, 'g');
+    slot.setAttribute('class', 'mouth-slot');
+    group.appendChild(slot); // on top of the face -> covers the resting mouth
+  }
+  while (slot.firstChild) slot.removeChild(slot.firstChild);
+  for (const stroke of data[viseme]) {
+    const { el, filled } = strokeEl(stroke, '#26354d');
+    if (filled) el.style.fillOpacity = '1'; // mouths show instantly (no pen reveal)
+    slot.appendChild(el);
+  }
+}
+
+function lipSync(id, text, durMs) {
+  for (const t of mouthTimers) clearTimeout(t);
+  mouthTimers = [];
+  if (!mouthData[id]) return;
+  for (const [t, v] of buildVisemes(text, durMs)) {
+    mouthTimers.push(setTimeout(() => renderMouth(id, v), t));
+  }
+  mouthTimers.push(setTimeout(() => renderMouth(id, 'rest'), durMs));
 }
 
 // Flip a group's strokes through pre-rendered pose frames (the rig ACTS). A one-shot
@@ -453,6 +520,7 @@ function applyStart(s) {
   board.setAttribute('viewBox', `0 0 ${s.board.w * PX} ${s.board.h * PX}`);
   camSeq++;
   clearBoard();
+  mouthData = {};
 }
 
 // Dispatch one event to its handler. Returns a Promise to AWAIT for blocking events
@@ -528,6 +596,7 @@ async function playTimeline(tl) {
         const at = Math.round(Math.min(0.92, (m.char_start || 0) / tlen) * durMs);
         setTimeout(() => dispatch({ type: ae.kind, ...ae.payload }), at);
       }
+      lipSync('guide', ev.text || '', durMs); // the host's mouth moves with the words
       await speak(ev.text || '');
     } else {
       const p = dispatch(ev);
