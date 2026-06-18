@@ -68,6 +68,15 @@ def choreograph(tl: Timeline, *, cinematic: bool = True, host: str = "guide") ->
         replace(e, at=anchor[e.id], blocking=False) if e.id in anchor else e for e in tl.entries
     ]
 
+    # 1b) the choreographer OWNS concept framing on the timeline path: drop compile_plan's
+    # sequential per-shot concept cameras (the sub-full frames) so they don't fight the anchored
+    # follow below; the full-frame bookends (scene establish + final pull-back) stay. Without this
+    # both camera systems fire on the same track and the fixed follow overrides the shot grammar.
+    bw = float((tl.meta.get("board") or {}).get("w") or 14.0)
+    entries = [
+        e for e in entries if not (e.kind == "camera" and float(e.payload.get("w", bw)) < bw - 1e-6)
+    ]
+
     # 2) the host points at each named concept (first mention), anchored to the same marker.
     points: list[TLEntry] = []
     if has_host:
@@ -87,19 +96,20 @@ def choreograph(tl: Timeline, *, cinematic: bool = True, host: str = "guide") ->
                     )
                 )
 
-    # 3) the CAMERA follows the narrated concept: a gentle pan/zoom to each, anchored to its
-    # marker (Phase 6). Non-blocking — the scheduler supersedes an in-flight move, so it reads
-    # as a follow. cinematic-gated (the still/calm board stays a wide static frame).
+    # 3) the CAMERA follows the narrated concept: a CUT to a medium on each, anchored to its
+    # marker (the #1 shot grammar). cinematic-gated (the still/calm board stays a wide static frame).
     cams = _follow_cameras(tl, entries, anchor) if cinematic else []
     return replace(tl, entries=tuple(entries) + tuple(points) + tuple(cams))
 
 
 def _follow_cameras(tl: Timeline, entries: list[TLEntry], anchor: dict[str, str]) -> list[TLEntry]:
-    """A gentle camera focus on each anchored concept, anchored to its marker. The focus window
-    is a soft ~62% zoom (a follow, not a tight crop), clamped on-board."""
+    """One camera per narrated concept, anchored to its word's marker: a CUT (ms=0) to a MEDIUM
+    frame (≈ plan._FRAMING_SCALE['medium'] = 0.6) centered on the concept, clamped on-board. This
+    is the #1 shot grammar applied on the timeline path — each spoken concept is a NEW subject, so
+    we cut to it (rather than the old fixed soft-zoom follow that overrode the framing)."""
     board = tl.meta.get("board") or {"w": 14.0, "h": 8.0}
     bw, bh = float(board["w"]), float(board["h"])
-    vw = round(bw * 0.62, 3)
+    vw = round(bw * 0.6, 3)  # a medium shot on the concept (the explain distance)
     vh = round(vw * bh / bw, 3)
     mx, my = bw / 2 - vw / 2, bh / 2 - vh / 2  # max center offset that keeps the window on-board
     cams: list[TLEntry] = []
@@ -119,9 +129,9 @@ def _follow_cameras(tl: Timeline, entries: list[TLEntry], anchor: dict[str, str]
                 track="camera",
                 kind="camera",
                 blocking=False,
-                payload={"x": round(cx, 3), "y": round(cy, 3), "w": vw, "h": vh, "ms": 650},
-                at=anchor[e.id],
-                dur_ms=650,
+                payload={"x": round(cx, 3), "y": round(cy, 3), "w": vw, "h": vh, "ms": 0},
+                at=anchor[e.id],  # a CUT to the new subject as its word is spoken (#1 grammar)
+                dur_ms=0,
             )
         )
     return cams

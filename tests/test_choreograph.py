@@ -115,6 +115,40 @@ def test_no_follow_camera_when_not_cinematic():
     assert not any(e.kind == "camera" for e in tl.entries)  # a diagram stays a static wide frame
 
 
+def test_choreographer_owns_concept_cameras_dropping_sequential_frames():
+    """#1b: on the timeline path the choreographer is the SOLE camera authority. It DROPS
+    compile_plan's sequential per-shot concept frames (sub-full) so they don't fight, keeps the
+    full-frame bookends, and re-emits one camera per narrated concept anchored to its word + CUT."""
+    events = [
+        {"type": "start", "topic": "sky", "style": "cartoon", "board": {"w": 14.0, "h": 8.0}},
+        {"type": "camera", "x": 0.0, "y": 0.0, "w": 14.0, "h": 8.0, "ms": 0},  # establish — KEPT
+        {
+            "type": "draw",
+            "op": {"id": "sun", "source": "icon", "strokes": [{"points": [[0, 0], [1, 0]]}]},
+        },
+        {
+            "type": "camera",
+            "x": 0.5,
+            "y": 0.0,
+            "w": 8.4,
+            "h": 4.8,
+            "ms": 0,
+        },  # per-shot frame — DROPPED
+        {
+            "type": "say",
+            "text": "The sun shines.",
+            "marks": [{"entity": "sun", "word": "sun", "start": 4, "end": 7}],
+        },
+    ]
+    cams = [e for e in choreograph.choreograph(_tl(events)).entries if e.kind == "camera"]
+    assert any(c.payload["w"] == 14.0 for c in cams)  # the full-frame establish bookend stays
+    # no SEQUENTIAL sub-full camera survives — every sub-full frame is now anchored to a word
+    assert all(c.at != "" for c in cams if c.payload["w"] < 14.0)
+    follow = [c for c in cams if c.at == "m:sun"]
+    assert len(follow) == 1 and follow[0].payload["ms"] == 0  # one concept, anchored + CUT
+    assert follow[0].payload["w"] < 14.0  # framed as a medium, not the whole stage
+
+
 def test_host_points_only_when_a_host_is_present():
     tl = choreograph.choreograph(_tl(_events(host=False)))  # no character on stage
     assert not any(e.kind == "action" for e in tl.entries)  # nothing to point WITH
