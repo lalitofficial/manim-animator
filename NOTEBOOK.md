@@ -1029,3 +1029,16 @@ sketch/catalog rung (explicit `size` still wins). Because the cartoon layout app
 across placed things, these ratios survive to the board — so semantic sizing IS the positioning fix:
 the scale hierarchy was the real gap, not the band placement (which is adequate). Phases 1-4 of the
 icon-pipeline overhaul are done; remaining polish (richer band routing, label layout) is optional.
+
+## W. Cartoon staging — the MID band (2026-06-20)
+
+**W1. The mid band existed in the layout but `_band` never routed to it.** Everything
+non-sky defaulted to ground, so abstract/science/body/tech props (atom, heart, gear, server)
+all crammed onto the horizon, and a *technical* "azure cloud" matched the `"cloud"` substring
+and floated up into the weather sky. Fix: `_band` now checks a `_MID` set + `_MID_SUBSTR`
+tokens FIRST — abstract/diagram/body concepts and imported tech ids (server/database/network/
+azure/aws/gateway/…) float in the diagram middle; a *weather* cloud (no tech token) still falls
+through to the sky. A mixed scene now stacks sky > mid > ground > host instead of a flat ground
+row. A purely-abstract scene still degrades to the centered grid (sky+ground both empty). This
+plus the Phase-4 scale hierarchy is the positioning polish; label captions on icons were left
+out deliberately (clutter risk — narration brackets already name shown things).

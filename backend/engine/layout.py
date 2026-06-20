@@ -103,9 +103,99 @@ _GROUND = frozenset(
 )
 
 
+# MID — abstract / diagrammatic / body / TECH concepts that float between sky and ground
+# (atom, gear, heart, server). Checked FIRST so a *technical* cloud (an imported
+# "azure …" icon) floats in the diagram middle instead of drifting up into the weather sky.
+_MID = frozenset(
+    {
+        "atom",
+        "molecule",
+        "electron",
+        "proton",
+        "neutron",
+        "dna",
+        "gene",
+        "cell",
+        "neuron",
+        "virus",
+        "bacteria",
+        "germ",
+        "microbe",
+        "gear",
+        "gears",
+        "cog",
+        "magnet",
+        "battery",
+        "circuit",
+        "wave",
+        "energy",
+        "force",
+        "gravity",
+        "equation",
+        "formula",
+        "graph",
+        "chart",
+        "diagram",
+        "orbit",
+        "cycle",
+        "heart",
+        "brain",
+        "lung",
+        "lungs",
+        "kidney",
+        "liver",
+        "stomach",
+        "bone",
+        "nerve",
+        "muscle",
+        "blood",
+        "server",
+        "database",
+        "network",
+        "gateway",
+        "kubernetes",
+        "docker",
+        "container",
+        "api",
+        "function",
+        "queue",
+        "storage",
+        "firewall",
+        "router",
+        "datacenter",
+        "microservice",
+        "internet",
+    }
+)
+# Tokens that mark a multi-word IMPORTED tech id as a diagram icon (→ mid band).
+_MID_SUBSTR = (
+    "server",
+    "database",
+    "network",
+    "gateway",
+    "kubernetes",
+    "storage",
+    "azure",
+    "aws",
+    "gcp",
+    "container",
+    "compute",
+    "firewall",
+    "datacenter",
+    "internet",
+    "vpc",
+    "subnet",
+    "lambda",
+    "microservice",
+    "load balancer",
+)
+
+
 def _band(concept: str) -> str:
     c = concept.strip().lower().replace("_", " ").replace("-", " ")
     words = set(c.split())
+    if words & _MID or any(s in c for s in _MID_SUBSTR):
+        return "mid"  # abstract / tech / body — floats in the diagram middle
     if c in _SKY or words & _SKY or any(s in c for s in ("cloud", "star", "rain")):
         return "sky"
     if c in _GROUND or words & _GROUND or any(s in c for s in ("tree", "mountain", "river")):
