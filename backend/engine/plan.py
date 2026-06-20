@@ -812,10 +812,12 @@ def lift_beats(beats: list[Beat], title: str = "lesson", style: str = "cartoon")
                 Action("connect", b.entity, b.target, {"label": b.text} if b.text else {})
             )
         elif b.kind == "say" and b.text:
-            if cur_say is not None:  # a new narration line starts a new shot
-                flush_shot()
+            # A `say` describes the shows that PRECEDE it (the prompt pairs "show X … say about X"),
+            # so it CLOSES the current shot — pairing narration with the entities JUST shown. (Was
+            # an off-by-one: a concept was narrated while the NEXT concept was being drawn.)
             cur_say = b.text
             cur_marks = b.marks  # carry the [concept] bindings onto this shot
+            flush_shot()
     flush_scene()
     # A gentle emotional ARC: a multi-scene lift lands on a joyful close (a satisfying end);
     # a single scene stays curious. Whiteboard scenes carry no mood.

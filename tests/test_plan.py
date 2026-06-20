@@ -89,7 +89,11 @@ def test_lift_beats_runs_through_the_same_compiler():
         show("tree", "tree"),
     ]
     lp = lift_beats(beats, "demo")
-    assert len(lp.scenes) == 1 and len(lp.scenes[0].shots) == 2  # one shot per `say`
+    # a `say` closes the shot of the shows BEFORE it (correct narration↔visual pairing); the
+    # opening "intro" say and the trailing unsaid `show tree` are each their own shot.
+    shots = lp.scenes[0].shots
+    assert len(lp.scenes) == 1 and len(shots) == 3
+    assert shots[0].say == "intro" and shots[1].enter == ("sun", "cloud") and shots[1].say == "more"
     assert {e.id for e in lp.scenes[0].entities} == {"sun", "cloud", "tree"}
     evs = list(compile_plan(lp, SPEC, BOARD))  # SPEC is cartoon
     assert any(e["type"] == "draw" for e in evs)
