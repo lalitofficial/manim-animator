@@ -213,7 +213,9 @@
     border-radius: var(--r-sm);
     padding: 8px 12px;
     color: var(--on-surface);
-    font-size: 13px;
+    /* Video-grade narration: bigger + bolder so it reads as a lesson subtitle, not UI chrome. */
+    font-size: 20px;
+    font-weight: 600;
     line-height: 1.4;
     text-align: center;
     background: var(--surface-2);

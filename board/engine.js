@@ -303,12 +303,9 @@ function drawBackground(ev) {
   } else {
     rect.setAttribute('fill', ev.fill || '#eaf3fb');
   }
-  rect.style.opacity = '0';
-  rect.style.transition = 'opacity 500ms ease-in';
+  // Drawn SOLID (no opacity fade): a fading backdrop briefly shows the pale empty board, which
+  // reads as a washed-out/blank flash at scene starts + between scenes. The stage is just there.
   insertByZ(rect, 0); // the backdrop sits behind every later stroke
-  requestAnimationFrame(() => {
-    rect.style.opacity = '1';
-  });
   if (ev.ground) {
     // The horizon band — props stand ON it (a scene with ground, not floating space).
     const boardH = halfH * 2 * PX;
@@ -319,12 +316,7 @@ function drawBackground(ev) {
     g2.setAttribute('width', `${halfW * 2 * PX}`);
     g2.setAttribute('height', `${gh}`);
     g2.setAttribute('fill', ev.ground.fill);
-    g2.style.opacity = '0';
-    g2.style.transition = 'opacity 500ms ease-in';
-    insertByZ(g2, 0);
-    requestAnimationFrame(() => {
-      g2.style.opacity = '1';
-    });
+    insertByZ(g2, 0); // the horizon band — also solid (no fade), same washout fix
   }
 }
 
@@ -712,6 +704,7 @@ function dispatch(ev) {
 // is fired DURING its owning say at the spoken word's proportional moment — draw-while-talking.
 async function playTimeline(tl) {
   applyStart(tl.meta || {});
+  caption.textContent = ''; // playback has begun — clear the "Planning…" status at once
   const markByName = {};
   for (const m of tl.markers || []) {
     markByName[m.name] = m;
