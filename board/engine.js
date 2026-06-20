@@ -16,6 +16,110 @@ const statusBar = document.getElementById('status');
 const topicInput = document.getElementById('topic');
 const goButton = document.getElementById('go');
 
+// Sound effects — procedural Web Audio (no asset files, no licensing): subtle blips keyed to the
+// stream events. Mutable + persisted; OFF leaves the board byte-identical. The AudioContext is
+// created on the first user gesture (the Teach click) so autoplay policies are satisfied.
+// (docs/PLAN-director-domains-and-liveliness.md, P4.)
+const sfx = (() => {
+  let ctx = null;
+  let master = null;
+  let muted = false;
+  try {
+    muted = localStorage.getItem('sfxMuted') === '1';
+  } catch (_e) {}
+  const LEVEL = 0.18; // subtle master level when un-muted
+
+  function ensure() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!ctx) {
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = muted ? 0 : LEVEL;
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  function shape(node, peak, dur, attack) {
+    const t0 = ctx.currentTime;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    node.connect(g);
+    g.connect(master);
+  }
+
+  function tone(freq, dur, type, peak, slideTo) {
+    if (muted || !ensure()) return;
+    const o = ctx.createOscillator();
+    o.type = type;
+    const t0 = ctx.currentTime;
+    o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    shape(o, peak, dur, 0.005);
+    o.start(t0);
+    o.stop(t0 + dur + 0.03);
+  }
+
+  function whoosh(dur, peak, type, from, to) {
+    if (muted || !ensure()) return;
+    const n = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = type;
+    const t0 = ctx.currentTime;
+    filt.frequency.setValueAtTime(from, t0);
+    filt.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    src.connect(filt);
+    shape(filt, peak, dur, 0.01);
+    src.start(t0);
+    src.stop(t0 + dur + 0.03);
+  }
+
+  return {
+    unlock() {
+      ensure();
+    },
+    isMuted() {
+      return muted;
+    },
+    setMuted(m) {
+      muted = m;
+      try {
+        localStorage.setItem('sfxMuted', m ? '1' : '0');
+      } catch (_e) {}
+      if (master) master.gain.value = m ? 0 : LEVEL;
+    },
+    draw() {
+      whoosh(0.12, 0.5, 'bandpass', 1700, 2500); // a soft pen scratch as a thing inks in
+    },
+    pop() {
+      tone(420, 0.12, 'sine', 0.5, 840); // a light upward pop for pop/rise entrances
+    },
+    connect() {
+      tone(880, 0.05, 'triangle', 0.3); // a tick when an edge attaches
+    },
+    clear() {
+      whoosh(0.36, 0.6, 'lowpass', 1500, 220); // a descending wipe between scenes
+    },
+    done() {
+      const notes = [523, 659, 784];
+      notes.forEach((f, i) => {
+        setTimeout(() => tone(f, 0.34, 'sine', 0.45), i * 120); // a gentle 3-note chime
+      });
+    },
+  };
+})();
+
 let halfW = 7;
 let halfH = 4;
 let mode = 'learn';
@@ -267,6 +371,18 @@ async function drawOp(op) {
   const entrance = style === 'cartoon' ? op.entrance || 'draw' : 'draw';
   let maxMs = 250;
 
+  // A subtle cue as each NEW op appears (skip re-poses/replacements so a gesturing character
+  // doesn't chatter). Connectors tick, pen-draws scratch, pop/rise entrances pop.
+  if (!prev) {
+    if (op.kind === 'connector') {
+      sfx.connect();
+    } else if (entrance === 'draw') {
+      sfx.draw();
+    } else {
+      sfx.pop();
+    }
+  }
+
   const reveals = [];
   for (const stroke of op.strokes) {
     const { el, filled } = strokeEl(stroke, opColor);
@@ -314,21 +430,42 @@ async function drawOp(op) {
 
   if (op.label && op.label_pos) {
     const [lx, ly] = toPx(op.label_pos[0], op.label_pos[1]);
+    const kinetic = op.text_anim === 'kinetic'; // the labeled-box backstop: text IS the asset
     const text = document.createElementNS(SVG_NS, 'text');
     text.setAttribute('x', `${lx}`);
     text.setAttribute('y', `${ly + 5}`);
     text.setAttribute('fill', opColor);
     text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('font-size', '16');
-    text.setAttribute('font-weight', style === 'cartoon' ? '700' : '400');
+    text.setAttribute('font-size', kinetic ? '19' : '16'); // un-drawable concept → make text the focus
+    text.setAttribute('font-weight', kinetic || style === 'cartoon' ? '700' : '400');
     text.setAttribute('font-family', 'sans-serif');
-    text.style.opacity = '0';
-    text.style.transition = 'opacity 300ms ease-in';
-    text.textContent = op.label;
     group.appendChild(text);
-    requestAnimationFrame(() => {
-      text.style.opacity = '1';
-    });
+    if (kinetic) {
+      // Reveal the label WORD BY WORD. Sequential presentation (mirroring the logic of speech)
+      // is the evidence-backed benefit of kinetic typography — it holds attention where a static
+      // box wouldn't. All words are added up front (opacity 0) so the centered layout is stable;
+      // only the per-word opacity is staggered. Stagger is capped so it stays purposeful, not slow.
+      const words = String(op.label).split(/\s+/).filter(Boolean);
+      const step = Math.min(260, Math.max(90, 200 / (pacing.draw_speed || 1)));
+      words.forEach((w, i) => {
+        const tsp = document.createElementNS(SVG_NS, 'tspan');
+        tsp.textContent = (i ? ' ' : '') + w;
+        tsp.style.opacity = '0';
+        tsp.style.transition = 'opacity 220ms ease-out';
+        text.appendChild(tsp);
+        setTimeout(() => {
+          tsp.style.opacity = '1';
+        }, i * step);
+      });
+      maxMs = Math.max(maxMs, (words.length - 1) * step + 240); // hold the beat until it finishes
+    } else {
+      text.style.opacity = '0';
+      text.style.transition = 'opacity 300ms ease-in';
+      text.textContent = op.label;
+      requestAnimationFrame(() => {
+        text.style.opacity = '1';
+      });
+    }
   }
 
   // Ambient idle motion (cartoon): a gentle, infinite life-in-the-frame loop.
@@ -553,6 +690,7 @@ function dispatch(ev) {
     case 'connector':
       return drawOp(ev.op);
     case 'clear':
+      sfx.clear();
       return (async () => {
         await sleep(800);
         camSeq++;
@@ -560,6 +698,7 @@ function dispatch(ev) {
       })();
     case 'done':
       caption.textContent += '  ✓';
+      sfx.done();
       showSummary(ev.summary);
       return;
     default:
@@ -673,6 +812,7 @@ async function loadStatus() {
 
 async function teach() {
   const topic = topicInput.value.trim() || 'the water cycle';
+  sfx.unlock(); // a user gesture — start/resume the AudioContext so later cues can play
   goButton.disabled = true;
   caption.textContent = 'Planning…';
   try {
@@ -733,6 +873,25 @@ topicInput.addEventListener('keydown', (e) => {
     teach();
   }
 });
+
+// Sound on/off — a small persistent toggle (top-right). SFX are subtle + mutable by design.
+const sfxToggle = document.createElement('button');
+sfxToggle.id = 'sfx-toggle';
+sfxToggle.type = 'button';
+sfxToggle.title = 'Toggle sound effects';
+sfxToggle.style.cssText =
+  'position:fixed;top:10px;right:12px;z-index:60;background:#1b2330;color:#e6edf3;' +
+  'border:1px solid #30363d;border-radius:8px;padding:6px 10px;cursor:pointer;font:600 13px sans-serif;';
+function paintSfxToggle() {
+  sfxToggle.textContent = sfx.isMuted() ? '🔇 SFX' : '🔊 SFX';
+}
+paintSfxToggle();
+sfxToggle.addEventListener('click', () => {
+  sfx.unlock();
+  sfx.setMuted(!sfx.isMuted());
+  paintSfxToggle();
+});
+document.body.appendChild(sfxToggle);
 
 loadStatus();
 playPendingStoryTimeline();

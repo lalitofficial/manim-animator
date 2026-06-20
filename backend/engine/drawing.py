@@ -482,4 +482,7 @@ def paint(
         z=int(pa.get("z", 3 if is_char else 1)),
         entrance=str(entrance),
         ambient=str(ambient),
+        # When no asset resolved (the labeled-box backstop), reveal the label word-by-word —
+        # sequential typography holds attention where a static box wouldn't (P2).
+        text_anim="kinetic" if d.source == "box" else "",
     )

@@ -40,6 +40,21 @@ def test_backstop_is_labeled_box():
     drawing.set_sketch_lookup(None)
 
 
+def test_backstop_label_is_kinetic():
+    """An un-drawable concept lands as the labeled-box backstop, and its label is flagged
+    `kinetic` so the live board reveals it word-by-word (P2 — attention-holding typography)."""
+    from engine.serialize import op_to_dict
+
+    drawing.set_sketch_lookup(lambda name: None)  # force the backstop (no QuickDraw match)
+    box = drawing.paint(Thing("c", "chloroplast", _e()), Placement("c", 0, 0, 1, 1))
+    drawing.set_sketch_lookup(None)
+    assert box.source == "box" and box.text_anim == "kinetic"
+    assert op_to_dict(box)["text_anim"] == "kinetic"
+    # a real drawing (a primitive) is NOT kinetic — it draws normally
+    circ = drawing.paint(Thing("o", "circle", _e()), Placement("o", 0, 0, 1, 1))
+    assert circ.source != "box" and circ.text_anim == ""
+
+
 def test_quickdraw_sketch_resolves_to_rung2():
     """Rung 2: a cached QuickDraw concept becomes a real stroke drawing (not a box).
     Uses a non-icon concept + disables icons to isolate the catalog rung."""

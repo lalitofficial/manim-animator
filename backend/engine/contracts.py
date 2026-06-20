@@ -236,6 +236,9 @@ class DrawOp:
     z: int = 1  # paint order: background=0, things=1, connectors=2, presenter=3
     entrance: str = "draw"  # how it appears: draw (pen reveal) | pop | rise | fade
     ambient: str = ""  # idle motion once drawn: "" (none) | bob | float | sway
+    text_anim: str = ""  # label animation: "" (single fade) | "kinetic" (word-by-word reveal).
+    #                      Set on the labeled-box backstop so an un-drawable concept still lands
+    #                      as attention-holding typography (docs/PLAN-…-liveliness.md, P2).
 
 
 # --------------------------------------------------------------------------- #

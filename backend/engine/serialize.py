@@ -35,6 +35,7 @@ def op_to_dict(op: DrawOp) -> dict:
         "z": op.z,  # paint order (background 0 < things 1 < connectors 2 < presenter 3)
         "entrance": op.entrance,  # draw | pop | rise | fade
         "ambient": op.ambient,  # "" | bob | float | sway | glow | rise | fall | flow
+        "text_anim": op.text_anim,  # "" (single fade) | "kinetic" (word-by-word label reveal)
         "strokes": [stroke_to_dict(s) for s in op.strokes],
         # NOTE: character motion adds `frames`/`fps`/`loop`/`idle` to this op dict downstream
         # in plan.compile_plan (a server-rendered flipbook the renderers' playClip plays).
