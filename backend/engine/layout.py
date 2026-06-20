@@ -191,12 +191,22 @@ _MID_SUBSTR = (
 )
 
 
+# Precipitation / vapor are IN TRANSIT between sky and ground (rising vapor, falling rain).
+# Staging them in the MID band fills the dead middle and lets a vertical process read
+# top→bottom (sun in sky · vapor/rain in transit · land on the ground), not crammed up top.
+_TRANSIT = frozenset(
+    {"rain", "raindrop", "droplet", "drop", "vapor", "mist", "snow", "snowflake", "steam", "dew"}
+)
+
+
 def _band(concept: str) -> str:
     c = concept.strip().lower().replace("_", " ").replace("-", " ")
     words = set(c.split())
     if words & _MID or any(s in c for s in _MID_SUBSTR):
         return "mid"  # abstract / tech / body — floats in the diagram middle
-    if c in _SKY or words & _SKY or any(s in c for s in ("cloud", "star", "rain")):
+    if words & _TRANSIT or any(s in c for s in ("rain", "droplet", "vapor", "snow")):
+        return "mid"  # precipitation / vapor — staged mid-air, in transit
+    if c in _SKY or words & _SKY or any(s in c for s in ("cloud", "star")):
         return "sky"
     if c in _GROUND or words & _GROUND or any(s in c for s in ("tree", "mountain", "river")):
         return "ground"
@@ -312,7 +322,7 @@ def compose_cartoon(
     if not bands["sky"] and not bands["ground"]:  # purely abstract -> centered grid
         return placements + _grid(concepts, board, cx_left, bool(title)), []
 
-    band_h = board.h * 0.32
+    band_h = board.h * 0.4  # taller bands → bigger props + less empty middle (less dead space)
     sky_cy = board.hh - (1.3 if title else _MARGIN) - band_h / 2
     mid_cy = (horizon + sky_cy) / 2
 
@@ -335,7 +345,7 @@ def compose_cartoon(
     # stranded in a 32%-tall band. Multi-band scenes keep the banded height (so bands don't overlap).
     only_ground = bool(bands["ground"]) and not bands["sky"] and not bands["mid"]
     scale_h = (board.hh - (1.7 if title else _MARGIN) - horizon) if only_ground else band_h
-    f = min(min_slot * 0.82 / max(smax_w, 1e-6), scale_h * 0.82 / max(smax_h, 1e-6), 3.4)
+    f = min(min_slot * 0.9 / max(smax_w, 1e-6), scale_h * 0.9 / max(smax_h, 1e-6), 4.2)
 
     for band, items in bands.items():
         if not items:

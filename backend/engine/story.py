@@ -676,7 +676,9 @@ def _water_cycle_plan(spec: DirectorSpec, P):
         ),
         P.Entity("sun", "sun", role="hero"),
         P.Entity("vapor", "droplet", role="particle"),  # evaporation — small + rising
-        P.Entity("cloud", "cloud", role="hero"),
+        P.Entity(
+            "cloud", "cloud", role="prop"
+        ),  # prop, not hero — it GROWS, so keep its base small
         P.Entity("rain", "rain", role="particle"),
         P.Entity("mountain", "mountain", role="prop"),
     ]

@@ -10,7 +10,9 @@ def test_band_routing():
     # weather / aerial → sky
     assert layout._band("cloud") == "sky"
     assert layout._band("sun") == "sky"
-    assert layout._band("rain") == "sky"
+    # precipitation / vapor → mid (in transit between sky and ground: rising vapor, falling rain)
+    for c in ("rain", "droplet", "vapor", "snow"):
+        assert layout._band(c) == "mid"
     # abstract / science / body → mid (floats in the diagram middle, not on the ground)
     for c in ("atom", "heart", "gear", "dna", "cell", "brain"):
         assert layout._band(c) == "mid"
