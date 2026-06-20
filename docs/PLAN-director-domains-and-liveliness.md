@@ -535,13 +535,12 @@ is config (`STORY_PROVIDER=gemini`), and lift_beats now makes its output a direc
 items (benefit every lesson incl. Gemini) rank above topic-specific or future-research work.*
 
 **Tier 1 — model-agnostic cartoon quality (every lesson benefits; verifiable via capture)**
-- [ ] **More process exemplars** — author day/night, photosynthesis, life cycles (the proven
-      `_water_cycle_plan` pattern). Zero-config rich lessons for common topics + reference shape
-      for the LLM; each also stress-tests staging on new entity mixes.
-- [ ] **Presenter performance depth** — vary the host's mid-scene gestures (react / nod / emphasize),
-      not just one entrance clip + point; stronger pointing.
+- [x] **More process exemplars** — water cycle + **day/night** + **photosynthesis** (the last
+      mixes icons with kinetic-text gases). Done; capture-verified.
+- [x] **Presenter performance depth** — the host's teaching gesture rotates (point/present/explain),
+      `point` dominant + head turns to the concept. Done.
 - [ ] **Staging composition** — kill the remaining horizontal dead space (props cluster left-of-centre
-      when few); spread across the width; scale up when sparse.
+      when few); spread across the width; scale up when sparse. *(partly inherent to progressive reveal)*
 - [ ] **Camera / cinematic build** — more deliberate push-ins + holds; foreground/background depth.
 
 **Tier 2 — production polish**
@@ -551,9 +550,11 @@ items (benefit every lesson incl. Gemini) rank above topic-specific or future-re
 - [ ] **Recorder mux line** — fold the ffmpeg audio mux into `tools/record_lesson.js` (your WIP).
 
 **Tier 3 — assets & domains**
-- [ ] **Run the real Bioicons sync** (`make sync-bioicons D=biology`) + publish — first real bio
-      coverage; measure the colorless-class-fill rate. Never run on real data yet (only fixtures).
-- [ ] **Surface per-icon author/attribution** (CC-BY) in the Studio + a credits beat.
+- [x] **Run the real Bioicons sync** — done; **caught + fixed a real bug** (icons nest under an
+      author folder, 4 levels). Biology: 442 imported, 237 renderable (~53%), **98% colored**. Author
+      now taken from the folder. Packs are gitignored (the user re-runs `make sync-bioicons` locally).
+- [ ] **Surface per-icon author/attribution** (CC-BY) in the Studio + a credits beat. *(author is
+      now captured from the folder; surfacing it remains)*
 - [ ] **Math glyph counters** — even-odd hole subtraction so a/b/e/o aren't filled (needs a hole
       concept in the Stroke/render model — not a quick fix).
 - [ ] **schemdraw circuits / data-viz charts** — need the Story to emit structured specs, not just
