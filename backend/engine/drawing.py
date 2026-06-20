@@ -122,6 +122,19 @@ def measure(thing: Thing, generate: bool = True, style: str = "whiteboard") -> D
     if cached is not None:
         return cached
 
+    # Bundle gate (non-breaking): only consulted when a bundle is actually disabled, so
+    # the default all-enabled runtime is byte-identical. A concept whose owning bundle is
+    # off falls to the labeled-box backstop instead of resolving its asset. PUBLISHED
+    # imported candidates are exempt — publishing is the explicit "make it drawable" act.
+    from engine import bundles, candidates_store
+
+    if (
+        bundles.any_disabled()
+        and not bundles.concept_enabled(thing.concept)
+        and not candidates_store.is_published(thing.concept)
+    ):
+        return _backstop(thing.concept)
+
     local = _resolve_local(thing)  # rung 1 (parametric, text)
     if local is not None:
         _cache[k] = local
@@ -148,6 +161,11 @@ def measure(thing: Thing, generate: bool = True, style: str = "whiteboard") -> D
     if sketch is not None:
         _cache[k] = sketch
         return sketch
+
+    pub = _published(thing)  # a PUBLISHED imported icon — low rung, fills a coverage gap
+    if pub is not None:
+        _cache[k] = pub
+        return pub
 
     if generate and k not in _negative:  # negative cache forks per (concept, geometry, STYLE)
         gen = _try_generate(thing)
@@ -228,6 +246,38 @@ def _character(thing: Thing) -> Drawable | None:
         extent=Extent(round(x1 - x0, 4), round(y1 - y0, 4)),
         rung=1,
         source="character",
+    )
+
+
+def _published(thing: Thing) -> Drawable | None:
+    """A PUBLISHED imported candidate (Excalidraw icon), normalized to board strokes.
+    Resolves LOW (after icon/catalog/sketch) so it only fills gaps, never shadows a
+    cartoon asset — and keyed by the candidate's unique id, so plain lesson nouns never
+    accidentally hit a technical diagram icon."""
+    from engine import candidates_store
+
+    strokes = candidates_store.published_strokes(thing.concept)
+    if not strokes:
+        return None
+    # Keep the imported look: a CLOSED shape with no fill is an OUTLINE — render it as a
+    # visually-closed open path so cartoon paint() doesn't tint-fill it. Filled shapes and
+    # colored strokes are preserved as-is (the whole point of importing with color).
+    strokes = tuple(
+        replace(s, closed=False, points=(*s.points, s.points[0]))
+        if (s.closed and not s.fill and s.points)
+        else s
+        for s in strokes
+    )
+    x0, y0, x1, y1 = g.strokes_bbox(strokes)
+    span = max(x1 - x0, y1 - y0, 1e-6)
+    target = float(thing.geometry_attrs.get("size", 2.0))
+    strokes = g.transform(strokes, 0.0, 0.0, target / span)
+    x0, y0, x1, y1 = g.strokes_bbox(strokes)
+    return Drawable(
+        strokes=strokes,
+        extent=Extent(round(x1 - x0, 4), round(y1 - y0, 4)),
+        rung=1,
+        source="published",
     )
 
 

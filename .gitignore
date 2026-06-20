@@ -1,6 +1,10 @@
 # ---- Build / generated artifacts ----
 build/
 
+# ---- Generated runtime state (bundle toggles, request log, import caches) ----
+# Studio writes these on demand; the committed registry is bundles.json + asset_overrides.json.
+data/
+
 # ---- Python ----
 __pycache__/
 *.py[cod]
@@ -55,3 +59,6 @@ backend/assets/
 .DS_Store
 # Mined-from dataset: raw annotations stay out of git (derived priors are committed)
 backend/engine/assets/animateddrawings/
+
+# ---- Imported asset candidates (un-trusted scratch; publish promotes to asset_overrides.json) ----
+backend/engine/candidates/

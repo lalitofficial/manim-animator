@@ -1,0 +1,126 @@
+{
+  "_doc": "Bundle registry: named, toggleable groups of assets the runtime resolves in priority order. Membership is by FAMILY (a whole parametric family) and/or explicit CONCEPTS. A concept's primary bundle is the highest-priority bundle that claims it; anything unclaimed falls to 'core' (always enabled). Disabling a bundle removes its concepts from runtime resolution (they fall to the labeled-box backstop). Enabled-state at runtime is overlaid from data/bundle_state.json (gitignored); this file is the catalog of bundles + their default enabled flag.",
+  "bundles": [
+    {
+      "id": "core",
+      "name": "Core",
+      "category": "core",
+      "priority": 100,
+      "enabled": true,
+      "locked": true,
+      "families": [],
+      "concepts": [],
+      "description": "Essential hand-built concepts + primitives. Always on; the default home for any concept no other bundle claims."
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "category": "weather",
+      "priority": 90,
+      "enabled": true,
+      "families": [],
+      "concepts": ["sun", "cloud", "rain", "snow", "storm", "wind", "rainbow", "lightning", "fog", "water", "droplet", "raindrop", "snowflake", "puddle"],
+      "description": "Sky and weather props for water-cycle and climate lessons."
+    },
+    {
+      "id": "classroom",
+      "name": "Classroom",
+      "category": "classroom",
+      "priority": 85,
+      "enabled": true,
+      "families": [],
+      "concepts": ["book", "books", "pencil", "ruler", "globe", "blackboard", "apple", "calculator", "brain", "bulb", "clock", "scissors", "paint", "abacus"],
+      "description": "Everyday classroom and study objects."
+    },
+    {
+      "id": "animals",
+      "name": "Animals",
+      "category": "animals",
+      "priority": 80,
+      "enabled": true,
+      "families": ["quad", "bird", "fish", "bug"],
+      "concepts": [],
+      "description": "The four parametric animal families (quadrupeds, birds, fish, bugs)."
+    },
+    {
+      "id": "science",
+      "name": "Science",
+      "category": "science",
+      "priority": 80,
+      "enabled": true,
+      "families": ["celestial", "blob", "cell", "atom", "virus", "dna", "neuron", "vessel", "bulb", "magnet", "organ"],
+      "concepts": ["molecule", "beaker", "microscope", "battery", "bolt", "bone"],
+      "description": "Celestial bodies, cells/microscopy, anatomy, and lab/physics props."
+    },
+    {
+      "id": "food",
+      "name": "Food & Plants",
+      "category": "food",
+      "priority": 75,
+      "enabled": true,
+      "families": ["fruit", "round_food", "tree"],
+      "concepts": ["leaf", "sprout", "flower", "mushroom", "seed", "grass"],
+      "description": "Fruit, prepared foods, and plants/trees."
+    },
+    {
+      "id": "vehicles",
+      "name": "Vehicles",
+      "category": "vehicles",
+      "priority": 75,
+      "enabled": true,
+      "families": ["vehicle"],
+      "concepts": ["anchor"],
+      "description": "Cars, bikes, buses, trucks, trains, planes, rockets, boats."
+    },
+    {
+      "id": "buildings",
+      "name": "Buildings & Places",
+      "category": "buildings",
+      "priority": 70,
+      "enabled": true,
+      "families": ["building"],
+      "concepts": ["house", "castle", "tent"],
+      "description": "Houses, schools, towers, and other places."
+    },
+    {
+      "id": "folk_tales",
+      "name": "Folk Tales",
+      "category": "folk_tales",
+      "priority": 65,
+      "enabled": true,
+      "families": [],
+      "concepts": ["crown", "castle", "dragon", "king", "sword", "scroll", "lamp", "pot", "throne", "shield"],
+      "description": "Props and characters for folk-tale and adventure stories."
+    },
+    {
+      "id": "effects",
+      "name": "Effects",
+      "category": "effects",
+      "priority": 55,
+      "enabled": true,
+      "families": [],
+      "concepts": ["star", "sparkle", "splash", "arrow", "glow", "rays", "heart", "bolt", "spark"],
+      "description": "Accent marks: stars, sparkles, splashes, glows."
+    },
+    {
+      "id": "backgrounds",
+      "name": "Backgrounds",
+      "category": "backgrounds",
+      "priority": 50,
+      "enabled": true,
+      "families": [],
+      "concepts": ["sky", "ground", "horizon", "space", "underwater", "night", "meadow"],
+      "description": "Scene backdrops (gradient stages); paint-time, not foreground props."
+    },
+    {
+      "id": "imported",
+      "name": "Imported (Excalidraw)",
+      "category": "imported",
+      "priority": 10,
+      "enabled": false,
+      "families": [],
+      "concepts": [],
+      "description": "Synced Excalidraw library icons (MIT), normalized to board strokes. Candidates — DISABLED by default so technical diagram icons never pollute cartoon lessons; enable a bundle or publish individual icons through the gates to use them."
+    }
+  ]
+}

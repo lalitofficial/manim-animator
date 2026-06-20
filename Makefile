@@ -50,6 +50,9 @@ bench-draw: ## Render the drawing scenes to build/engine/*.svg + check the Phase
 vendor-icons: ## Vendor more Tabler line icons (MIT) into the catalog + alias index
 	PYTHONPATH=backend uv run python scripts/vendor_tabler.py
 
+sync-excalidraw: ## Sync ALL Excalidraw libraries (MIT) into normalized candidate packs (pass N=10 to limit)
+	PYTHONPATH=backend uv run python scripts/sync_excalidraw.py $(N)
+
 lesson: ## Render a full lesson end-to-end (pass T="a topic") -> build/engine/lesson.svg
 	PYTHONPATH=backend uv run python -m engine.bench_lesson $(T)
 

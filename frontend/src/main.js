@@ -1,4 +1,5 @@
+import 'dockview-core/dist/styles/dockview.css';
 import './app.css';
-import App from './App.svelte';
+import Root from './Root.svelte';
 
-export default new App({ target: document.getElementById('app') });
+export default new Root({ target: document.getElementById('app') });

@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def hermetic(monkeypatch):
+def hermetic(monkeypatch, tmp_path):
     """Force the deterministic, OFFLINE providers for EVERY test. The product now
     defaults to local-first `auto` (probe Ollama, auto-pick a model) — without this
     the suite would hit the dev's running Ollama (network + non-deterministic). Tests
@@ -16,6 +16,13 @@ def hermetic(monkeypatch):
     from engine import models
 
     monkeypatch.setattr(models, "ollama_tags", lambda *a, **k: None)  # the one probe point
+
+    # Isolate the imported-candidate store so no test reads the real synced/published
+    # icons on disk (drawing.measure consults it; keep that hermetic + empty).
+    from engine import candidates_store
+
+    monkeypatch.setattr(candidates_store, "_DIR", tmp_path / "candidates")
+    candidates_store.refresh()
 
 
 @pytest.fixture

@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -66,9 +66,9 @@ def announce_brain():
     print(f"  🤖 ollama  : {'up' if cfg['ollama_reachable'] else 'down'} {cfg['ollama_models']}")
     for w in cfg["warnings"]:
         print(f"  ⚠️  {w}")
-    if s["provider"] == "gemini":
+    if s["provider"] in ("gemini", "vertex"):
         print(
-            "  ⚠️  Using PAID cloud. To go local: `unset STORY_PROVIDER GEMINI_API_KEY` then restart."
+            "  ⚠️  Using cloud model. To go local: `unset STORY_PROVIDER GEMINI_API_KEY` then restart."
         )
     print()
 
@@ -210,6 +210,8 @@ def engine_status():
         "ollama_reachable": d["ollama_reachable"],
         "ollama_models": d["ollama_models"],
         "gemini_key_set": d["gemini_key_set"],
+        "vertex_project": d["vertex_project"],
+        "vertex_location": d["vertex_location"],
         "quickdraw_cached": len(sketches.cached_names()),
         "warnings": d["warnings"],
         # The full per-job resolution (provider/model/requested/note).
@@ -364,6 +366,29 @@ class AnimateStoryRequest(BaseModel):
     style: str = "cartoon"
 
 
+class BundleToggleRequest(BaseModel):
+    id: str
+    enabled: bool
+
+
+class VariantRequest(BaseModel):
+    """A family-variant preview/gate request from the Asset Studio."""
+
+    family: str
+    params: dict[str, Any] = {}
+
+
+class SaveVariantRequest(BaseModel):
+    """Publish an APPROVED family variant into the override layer."""
+
+    concept: str
+    family: str
+    params: dict[str, Any] = {}
+    bundle: str = ""
+    approved: bool = False
+    license: str = "studio"
+
+
 def _extract_json(text: str):
     """Tolerantly pull a JSON value out of pasted text (strip ``` fences / prose)."""
     t = (text or "").strip()
@@ -465,6 +490,268 @@ def story_studio_animate(req: AnimateStoryRequest):
     from engine.stream import timeline_from_package
 
     return {"timeline": timeline_from_package(req.package, req.style)}
+
+
+# --- Asset Studio: assets as first-class, bundled, gated engine resources --- #
+@app.get("/asset-studio")
+def asset_studio_view():
+    """The Asset Studio: catalog, bundles, coverage, and the family-variant creator."""
+    return FileResponse(BOARD / "asset_studio.html")
+
+
+@app.get("/api/asset-studio/catalog")
+def asset_studio_catalog(
+    q: str = "",
+    bundle: str = "",
+    kind: str = "",
+    style: str = "",
+    status: str = "",
+    offset: int = 0,
+    limit: int = 120,
+):
+    from engine import asset_registry, asset_studio
+
+    page = asset_studio.catalog(
+        q=q, bundle=bundle, kind=kind, style=style, status=status, offset=offset, limit=limit
+    )
+    return {**page, "stats": asset_registry.stats()}
+
+
+@app.get("/api/asset-studio/preview")
+def asset_studio_preview(concept: str, style: str = "cartoon"):
+    """Render an existing concept to a standalone SVG preview."""
+    from engine import asset_studio
+
+    return Response(asset_studio.preview(concept, style), media_type="image/svg+xml")
+
+
+@app.get("/api/asset-studio/bundles")
+def asset_studio_bundles():
+    from engine import bundles
+
+    return {
+        "bundles": [b.to_dict() for b in bundles.all_bundles()],
+        "any_disabled": bundles.any_disabled(),
+        "resolve_order": bundles.resolve_order(),
+    }
+
+
+@app.post("/api/asset-studio/bundles/toggle")
+def asset_studio_toggle_bundle(req: BundleToggleRequest):
+    from engine import asset_registry, bundles
+
+    result = bundles.set_enabled(req.id, req.enabled)
+    asset_registry.refresh()
+    return result
+
+
+@app.get("/api/asset-studio/coverage")
+def asset_studio_coverage():
+    from engine import coverage
+
+    return coverage.analyze()
+
+
+@app.get("/api/asset-studio/families")
+def asset_studio_families():
+    from engine import asset_studio
+
+    return {"families": asset_studio.families_schema()}
+
+
+@app.post("/api/asset-studio/variant/preview")
+def asset_studio_variant_preview(req: VariantRequest):
+    from engine import asset_studio
+
+    try:
+        svg = asset_studio.preview_variant(req.family, req.params)
+    except Exception as e:  # noqa: BLE001 - surface bad params to the Studio, don't 500
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return Response(svg, media_type="image/svg+xml")
+
+
+@app.post("/api/asset-studio/variant/gate")
+def asset_studio_variant_gate(req: VariantRequest):
+    from engine import asset_studio
+
+    return asset_studio.gate_variant(req.family, req.params)
+
+
+@app.post("/api/asset-studio/variant/save")
+def asset_studio_variant_save(req: SaveVariantRequest):
+    from engine import asset_studio
+
+    return asset_studio.save_variant(
+        req.concept,
+        req.family,
+        req.params,
+        bundle=req.bundle,
+        approved=req.approved,
+        license=req.license,
+    )
+
+
+@app.get("/api/asset-studio/excalidraw/authors")
+def asset_studio_excalidraw_authors(refresh: bool = False):
+    """Contributor folders from excalidraw-libraries/libraries/. One cached GitHub request."""
+    from engine import excalidraw_libraries
+
+    try:
+        return excalidraw_libraries.authors(refresh=refresh)
+    except Exception as e:  # noqa: BLE001 - surface import-source failures to the Studio
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+@app.get("/api/asset-studio/excalidraw/files")
+def asset_studio_excalidraw_files(author_path: str):
+    """`.excalidrawlib` files inside one contributor folder."""
+    from engine import excalidraw_libraries
+
+    try:
+        return excalidraw_libraries.files(author_path)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.get("/api/asset-studio/excalidraw/library")
+def asset_studio_excalidraw_library(path: str):
+    """Summary of one `.excalidrawlib` pack: item counts, element types, bboxes."""
+    from engine import excalidraw_libraries
+
+    try:
+        return excalidraw_libraries.load(path).to_dict()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.get("/api/asset-studio/excalidraw/item")
+def asset_studio_excalidraw_item(path: str, index: int = 0):
+    """One Excalidraw library item plus an approximate SVG preview."""
+    from engine import excalidraw_libraries
+
+    try:
+        return excalidraw_libraries.item(path, index)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.get("/api/asset-studio/excalidraw/index")
+def asset_studio_excalidraw_index(refresh: bool = False):
+    """The WHOLE catalog: every published library (Azure/AWS/GCP/clouds/…) with preview
+    image + item names, from the repo-root libraries.json. One cached request."""
+    from engine import excalidraw_libraries
+
+    try:
+        return excalidraw_libraries.index(refresh=refresh)
+    except Exception as e:  # noqa: BLE001 - surface import-source failures to the Studio
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+class ExcalImportRequest(BaseModel):
+    path: str
+    index: int = 0
+    concept: str = ""
+
+
+@app.post("/api/asset-studio/excalidraw/import")
+def asset_studio_excalidraw_import(req: ExcalImportRequest):
+    """Crop/normalize one library item (and its whole set) to board-unit candidate strokes."""
+    from engine import asset_registry, excalidraw_libraries
+
+    try:
+        result = excalidraw_libraries.import_item(req.path, req.index, req.concept)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    asset_registry.refresh()
+    return result
+
+
+class PublishRequest(BaseModel):
+    """Promote imported candidates to engine-drawable (or demote)."""
+
+    concepts: list[str] = []
+    all: bool = False
+
+
+@app.post("/api/asset-studio/publish")
+def asset_studio_publish(req: PublishRequest):
+    """Publish candidates so the engine can DRAW them (a low resolution rung that fills
+    gaps without shadowing cartoon assets). `all` publishes every renderable candidate."""
+    from engine import asset_registry, candidates_store
+
+    n = candidates_store.publish_all() if req.all else candidates_store.publish(req.concepts)
+    asset_registry.refresh()
+    return {"ok": True, "published": n, "total_published": candidates_store.stats()["published"]}
+
+
+@app.post("/api/asset-studio/unpublish")
+def asset_studio_unpublish(req: PublishRequest):
+    from engine import asset_registry, candidates_store
+
+    if req.all:
+        candidates_store.unpublish_all()
+        n = 0
+    else:
+        n = candidates_store.unpublish(req.concepts)
+    asset_registry.refresh()
+    return {"ok": True, "unpublished": n, "total_published": candidates_store.stats()["published"]}
+
+
+class ExcalLibraryRequest(BaseModel):
+    path: str
+
+
+@app.post("/api/asset-studio/excalidraw/import-library")
+def asset_studio_excalidraw_import_library(req: ExcalLibraryRequest):
+    """Import a WHOLE set: every item parsed from coordinates into candidate strokes."""
+    from engine import asset_registry, excalidraw_libraries
+
+    try:
+        result = excalidraw_libraries.import_library(req.path)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    asset_registry.refresh()
+    return result
+
+
+# Background full-sync state (single-process; fine for a local Studio).
+_EXCAL_SYNC: dict[str, Any] = {"running": False, "done": 0, "total": 0, "name": "", "result": None}
+
+
+@app.post("/api/asset-studio/excalidraw/sync")
+def asset_studio_excalidraw_sync(limit: int = 0):
+    """Kick off a background sync of ALL Excalidraw libraries → candidate packs. Poll
+    /sync-status for progress. (For large/full syncs, `make sync-excalidraw` is also fine.)"""
+    from engine import asset_registry, excalidraw_libraries
+
+    if _EXCAL_SYNC["running"]:
+        return {"ok": False, "error": "a sync is already running", **_EXCAL_SYNC}
+
+    def _progress(done: int, total: int, name: str):
+        _EXCAL_SYNC.update(done=done, total=total, name=name)
+
+    def _run():
+        _EXCAL_SYNC.update(running=True, done=0, total=0, name="", result=None)
+        try:
+            res = excalidraw_libraries.sync_all(
+                progress=_progress, limit=(limit or None), refresh=True
+            )
+            asset_registry.refresh()
+            _EXCAL_SYNC["result"] = res
+        except Exception as e:  # noqa: BLE001
+            _EXCAL_SYNC["result"] = {"ok": False, "error": str(e)}
+        finally:
+            _EXCAL_SYNC["running"] = False
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"ok": True, "started": True}
+
+
+@app.get("/api/asset-studio/excalidraw/sync-status")
+def asset_studio_excalidraw_sync_status():
+    from engine import candidates_store
+
+    return {**_EXCAL_SYNC, "store": candidates_store.stats()}
 
 
 # --- v3 engine testing/checking dashboard ---------------------------------- #

@@ -1,14 +1,57 @@
+/* ── Material 3 (dark) design tokens ─────────────────────────────────────
+   Tonal surfaces (no hard boxes), one primary, segmented-button + chip
+   system. Legacy var names are remapped onto M3 roles so every component
+   inherits the new language for free. */
 :root {
   color-scheme: dark;
-  --bg: #0d1117;
-  --panel: #161b22;
-  --line: #30363d;
-  --line2: #21262d;
-  --fg: #e6edf3;
-  --muted: #8b949e;
-  --accent: #1f6feb;
-  --green: #1f6f3f;
-  --warn: #5a3a1a;
+
+  /* M3 roles */
+  --primary: #a8c7fa;
+  --on-primary: #0a305f;
+  --primary-container: #284777;
+  --on-primary-container: #d7e3ff;
+  --secondary-container: #3a4759;
+  --on-secondary-container: #dbe2f9;
+  --surface: #111418;
+  --surface-1: #191c20;
+  --surface-2: #1d2024;
+  --surface-3: #22262b;
+  --surface-4: #272b30;
+  --on-surface: #e3e2e6;
+  --on-surface-variant: #c4c7c5;
+  --outline: #8d9199;
+  --outline-variant: #41474d;
+  --error: #ffb4ab;
+  --error-container: #5a2a26;
+  --success: #7fd8a0;
+  --success-container: #234a32;
+  --warn-container: #4d3a18;
+  --on-warn: #ffd9a8;
+  --state: rgba(255, 255, 255, 0.08);
+  --state-strong: rgba(255, 255, 255, 0.12);
+
+  /* shape */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-full: 999px;
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --elev-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+
+  /* legacy aliases → M3 roles */
+  --bg: var(--surface);
+  --panel: var(--surface-2);
+  --surface-strong: var(--surface-3);
+  --field: var(--surface-3);
+  --line: var(--outline-variant);
+  --line2: #2a2e33;
+  --fg: var(--on-surface);
+  --muted: var(--on-surface-variant);
+  --accent: var(--primary);
+  --green: var(--success-container);
+  --warn: var(--warn-container);
+  --shadow: var(--elev-1);
 }
 * {
   box-sizing: border-box;
@@ -17,19 +60,204 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: ui-sans-serif, -apple-system, system-ui, sans-serif;
+  font-family: Roboto, Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
 }
 button {
   font: inherit;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.38;
   cursor: default;
 }
 input,
-select {
+select,
+textarea {
   font: inherit;
+}
+input,
+select,
+textarea,
+button {
+  outline: none;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+/* ── Reusable M3 components (global so every panel inherits them) ───────── */
+
+/* Filled text field — rounded, tonal, label floats above, focus underline. */
+.m3-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  padding: 0 12px;
+  min-height: 40px;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+.m3-field:focus-within {
+  background: var(--surface-4);
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+.m3-field input,
+.m3-field select {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  color: var(--on-surface);
+  padding: 9px 0;
+}
+.m3-field input::placeholder {
+  color: var(--on-surface-variant);
+}
+.m3-field .lead {
+  width: 18px;
+  height: 18px;
+  fill: var(--on-surface-variant);
+  flex: 0 0 auto;
+}
+
+/* Segmented buttons — connected, single-select, ALWAYS one row, equal widths. */
+.m3-seg {
+  display: flex;
+  flex-wrap: nowrap;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-full);
+  overflow: hidden;
+  background: transparent;
+}
+.m3-seg > button {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  border: 0;
+  border-left: 1px solid var(--outline);
+  background: transparent;
+  color: var(--on-surface);
+  padding: 7px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 120ms ease, color 120ms ease;
+}
+.m3-seg > button:first-child {
+  border-left: 0;
+}
+.m3-seg > button:hover:not(.sel) {
+  background: var(--state);
+}
+.m3-seg > button.sel {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+
+/* Filter chip — standalone, rounded, tonal when selected. */
+.m3-chip {
+  border: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--on-surface-variant);
+  border-radius: var(--r-xs);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.m3-chip:hover {
+  background: var(--state);
+  color: var(--on-surface);
+}
+.m3-chip.sel {
+  background: var(--secondary-container);
+  border-color: transparent;
+  color: var(--on-secondary-container);
+}
+
+/* FAB-ish primary action button. */
+.m3-fab {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: var(--elev-1);
+  transition: filter 120ms ease, transform 90ms ease, background 120ms ease;
+}
+.m3-fab:hover {
+  filter: brightness(1.05);
+}
+.m3-fab:active {
+  transform: scale(0.94);
+}
+.m3-fab.danger {
+  background: var(--error);
+  color: #3a0906;
+}
+.m3-fab svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+/* Icon button — text-style, state-layer hover. */
+.m3-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--on-surface-variant);
+  padding: 0;
+  transition: background 120ms ease, color 120ms ease;
+}
+.m3-icon:hover {
+  background: var(--state);
+  color: var(--on-surface);
+}
+.m3-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+.dock-panel {
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.dockview-theme-dark {
+  --dv-group-view-background-color: var(--bg);
+  --dv-tabs-and-actions-container-background-color: #141a21;
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-inactivegroup-visiblepanel-tab-background-color: #10151b;
+  --dv-activegroup-hiddenpanel-tab-background-color: #151c24;
+  --dv-inactivegroup-hiddenpanel-tab-background-color: #121820;
+  --dv-activegroup-visiblepanel-tab-color: var(--fg);
+  --dv-activegroup-hiddenpanel-tab-color: var(--muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: #6e7b87;
+  --dv-tabs-and-actions-container-height: 31px;
+  --dv-tabs-and-actions-container-font-size: 12px;
+  --dv-separator-border: var(--line);
+  --dv-tab-divider-color: var(--line2);
 }
 
 /* Ambient idle motion for cartoon drawables (set from board.js — must be global,

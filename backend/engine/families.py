@@ -961,7 +961,7 @@ _add(
     "bird",
     {
         "eagle": {"body": "#6e4a2b", "line": "#4a3018", "belly": "#e8d4a8", "beak": "#f5b800"},
-        "crow": {"body": "#2c3038", "line": "#15181d", "belly": "#3a3f48"},
+        "crow": {"body": "#2c3038", "line": "#4f5864", "belly": "#3a3f48"},
         "dove": {"body": "#f2f2f2", "line": "#b0b4b8", "belly": "#fff"},
         "swan": {
             "body": "#f7f7f7",
@@ -1063,6 +1063,488 @@ _add(
         "fungus": {"body": "#d6a05b", "line": "#a0702b"},
         "mold": {"body": "#9abf5b", "line": "#6a902b"},
         "microorganism": {"body": "#8acbcf", "line": "#4a9a9f"},
+    },
+)
+
+# --- third wave: same-style scale-up (data only, no foreign SVG style) -------- #
+_add(
+    "quad",
+    {
+        "lynx": {"body": "#c58a4a", "line": "#80582f", "ear": "point", "tail": "puff"},
+        "panther": {"body": "#2c3038", "line": "#4f5864", "ear": "round", "tail": "down"},
+        "jaguar": {
+            "body": "#d89a3a",
+            "line": "#7a4a16",
+            "ear": "round",
+            "tail": "down",
+            "belly": "#f0cf8a",
+        },
+        "cheetah": {
+            "body": "#e8bd5a",
+            "line": "#9a6a20",
+            "ear": "round",
+            "tail": "down",
+            "belly": "#f5d98a",
+        },
+        "seal": {"body": "#8fa0a8", "line": "#5f7078", "ear": "round", "tail": "down"},
+        "otter": {
+            "body": "#8a5a3a",
+            "line": "#5e3c22",
+            "ear": "round",
+            "tail": "down",
+            "belly": "#c89a68",
+        },
+        "beaver": {
+            "body": "#8a5a3a",
+            "line": "#5e3c22",
+            "ear": "round",
+            "tail": "puff",
+            "belly": "#b98755",
+        },
+        "badger": {
+            "body": "#d8d8d0",
+            "line": "#3a3a3a",
+            "ear": "round",
+            "tail": "puff",
+            "snout": "#f2f2f2",
+        },
+        "boar": {"body": "#7a5238", "line": "#4e321f", "ear": "point", "tail": "puff"},
+        "walrus": {
+            "body": "#9a6a4a",
+            "line": "#6a442f",
+            "ear": "round",
+            "tail": "down",
+            "snout": "#d8b890",
+        },
+        "moose": {"body": "#8a5a3a", "line": "#5e3c22", "ear": "long", "horns": True},
+        "reindeer": {
+            "body": "#a8784a",
+            "line": "#6a4a2a",
+            "ear": "long",
+            "horns": True,
+            "belly": "#e0c4a0",
+        },
+        "antelope": {
+            "body": "#c89452",
+            "line": "#80582f",
+            "ear": "long",
+            "horns": True,
+            "belly": "#e8c99a",
+        },
+        "gazelle": {
+            "body": "#d2a35f",
+            "line": "#8a6030",
+            "ear": "long",
+            "horns": True,
+            "belly": "#f0d4a0",
+        },
+        "yak": {
+            "body": "#6e4a35",
+            "line": "#422b1d",
+            "ear": "round",
+            "horns": True,
+            "belly": "#8a6a52",
+        },
+        "buffalo": {"body": "#5a4638", "line": "#35291f", "ear": "round", "horns": True},
+        "bison": {
+            "body": "#6a4630",
+            "line": "#3f281a",
+            "ear": "round",
+            "horns": True,
+            "belly": "#8a6040",
+        },
+        "mule": {"body": "#a88a70", "line": "#705a45", "ear": "long", "tail": "down"},
+        "pony": {"body": "#cf8a4a", "line": "#8a5528", "ear": "point", "tail": "down"},
+        "foal": {"body": "#cfa06a", "line": "#8a6030", "ear": "point", "tail": "down"},
+        "calf": {
+            "body": "#f0ead8",
+            "line": "#7a6a52",
+            "ear": "round",
+            "horns": True,
+            "belly": "#d8c0a0",
+        },
+        "lamb": {
+            "body": "#f7f4ee",
+            "line": "#8a8378",
+            "ear": "long",
+            "tail": "puff",
+            "belly": "#fff",
+        },
+        "ram": {"body": "#e8e0d2", "line": "#8a8074", "ear": "round", "horns": True},
+        "alpaca": {"body": "#f0e2c8", "line": "#a88760", "ear": "point", "tail": "puff"},
+        "sloth": {
+            "body": "#9a7a52",
+            "line": "#6e5436",
+            "ear": "round",
+            "tail": "puff",
+            "snout": "#d8c4a0",
+        },
+        "armadillo": {
+            "body": "#9a8a70",
+            "line": "#6a604e",
+            "ear": "point",
+            "tail": "down",
+            "belly": "#c8b898",
+        },
+        "porcupine": {
+            "body": "#7a5a3a",
+            "line": "#4e3a22",
+            "ear": "round",
+            "tail": "puff",
+            "snout": "#d8b890",
+        },
+        "chipmunk": {
+            "body": "#b47a42",
+            "line": "#754a24",
+            "ear": "round",
+            "tail": "puff",
+            "belly": "#e8c89a",
+        },
+        "hamster": {
+            "body": "#d8b078",
+            "line": "#9a6a2b",
+            "ear": "round",
+            "tail": "puff",
+            "belly": "#f0d4a8",
+        },
+        "guinea pig": {
+            "body": "#c98a5a",
+            "line": "#84582f",
+            "ear": "round",
+            "tail": "puff",
+            "belly": "#fff",
+        },
+        "ferret": {
+            "body": "#c8a070",
+            "line": "#7a5430",
+            "ear": "round",
+            "tail": "down",
+            "snout": "#f0d8b8",
+        },
+        "weasel": {"body": "#b08050", "line": "#7a5430", "ear": "round", "tail": "down"},
+    },
+)
+_add(
+    "bird",
+    {
+        "pigeon": {"body": "#8fa0a8", "line": "#5f7078", "belly": "#cfd8dc"},
+        "seagull": {"body": "#f2f2f2", "line": "#9aa0a6", "belly": "#fff", "beak": "#f5b800"},
+        "pelican": {
+            "body": "#f0e6d2",
+            "line": "#b09a6a",
+            "belly": "#fff",
+            "tall": True,
+            "beak": "#f5871f",
+        },
+        "crane": {"body": "#e8e8e8", "line": "#9aa0a6", "belly": "#fff", "tall": True},
+        "stork": {"body": "#f4f4f4", "line": "#9aa0a6", "belly": "#fff", "tall": True},
+        "heron": {"body": "#9aa6b8", "line": "#667080", "belly": "#dfe3e6", "tall": True},
+        "kiwi": {"body": "#8a6a4a", "line": "#5e4430", "belly": "#c8a878", "tall": True},
+        "woodpecker": {"body": "#2c3038", "line": "#15181d", "belly": "#fff", "beak": "#d22f4a"},
+        "hummingbird": {"body": "#2fa070", "line": "#1d704d", "belly": "#8ad6c0"},
+        "canary": {"body": "#ffe066", "line": "#d9a900", "belly": "#fff2a8"},
+        "finch": {"body": "#c28a4a", "line": "#80582f", "belly": "#e8d0a8"},
+        "raven": {"body": "#1f232a", "line": "#4f5864", "belly": "#2c3038"},
+        "magpie": {"body": "#2c3038", "line": "#15181d", "belly": "#fff"},
+        "macaw": {"body": "#e2473b", "line": "#a01f30", "belly": "#3f7ad6", "beak": "#f5b800"},
+        "cockatoo": {"body": "#f4f4f4", "line": "#b0b4b8", "belly": "#fff2a8", "beak": "#d9a900"},
+    },
+)
+_add(
+    "fish",
+    {
+        "cod": {"body": "#8a9a70", "line": "#5a6a48", "belly": "#d8e0c8"},
+        "trout": {"body": "#9aa6b8", "line": "#667080", "belly": "#f0c0a8"},
+        "carp": {"body": "#d8b45a", "line": "#a8782a", "belly": "#f0d8a0"},
+        "koi": {"body": "#f4f4f4", "line": "#c05a48", "belly": "#ffd0c4"},
+        "eel": {"body": "#6a7a52", "line": "#445030", "belly": "#c8d0a8", "big": True},
+        "stingray": {"body": "#7a8a9a", "line": "#4f6070", "belly": "#dfe3e6", "big": True},
+        "manta ray": {"body": "#2c5a70", "line": "#1a3d4e", "belly": "#bcd3df", "big": True},
+        "orca": {"body": "#1f232a", "line": "#4f5864", "belly": "#fff", "big": True},
+        "narwhal": {"body": "#dfeaf6", "line": "#8aa0b8", "belly": "#fff", "big": True},
+        "seahorse": {"body": "#f5a623", "line": "#cf7f17"},
+        "starfish": {"body": "#f5871f", "line": "#c06a1a"},
+        "jellyfish": {"body": "#bf8acb", "line": "#8a5a9a", "belly": "#e4c8ee"},
+    },
+)
+_add(
+    "bug",
+    {
+        "mosquito": {"body": "#7a8a7a", "line": "#4f604f", "wings": True, "spots": "#c8d0c8"},
+        "fly": {"body": "#4a5a5a", "line": "#2f3a3a", "wings": True, "spots": "#c8d8d8"},
+        "termite": {"body": "#d8c49a", "line": "#a8884a"},
+        "cricket": {"body": "#5a8a3a", "line": "#3a6022"},
+        "mantis": {"body": "#7abf6a", "line": "#4f9150"},
+        "cicada": {"body": "#8a8060", "line": "#5a543c", "wings": True, "spots": "#d8ccb0"},
+        "weevil": {"body": "#6a5a4a", "line": "#44382e"},
+        "scarab": {"body": "#2f8a72", "line": "#1f604f"},
+        "hornet": {"body": "#f5c23f", "line": "#3a3a3a", "spots": "#3a3a3a"},
+        "centipede": {"body": "#a85a3a", "line": "#6a3824", "spots": "#6a3824"},
+    },
+)
+_add(
+    "fruit",
+    {
+        "banana": {"body": "#f5d423", "line": "#c0a217", "shape": "pear"},
+        "grape": {"body": "#7a4fd6", "line": "#4f2fa0"},
+        "grapes": {"body": "#7a4fd6", "line": "#4f2fa0"},
+        "blueberry": {"body": "#3f5fd6", "line": "#2b3f9a"},
+        "blackberry": {"body": "#3a2f52", "line": "#241d35"},
+        "raspberry": {"body": "#d22f5a", "line": "#9a1f3f"},
+        "kiwi fruit": {"body": "#8abf4a", "line": "#5f8a2f"},
+        "pineapple": {"body": "#e8b23f", "line": "#a8781a", "shape": "pear", "leaf": True},
+        "papaya": {"body": "#f08a3a", "line": "#b85a1a", "shape": "pear"},
+        "guava": {"body": "#9fd26a", "line": "#6fa03f"},
+        "lychee": {"body": "#e8a0a8", "line": "#b86a72"},
+        "dragon fruit": {"body": "#ef6fb0", "line": "#c23f86", "shape": "pear"},
+        "date": {"body": "#8a4a2b", "line": "#5e2f1a"},
+        "olive": {"body": "#7a8a3a", "line": "#54602f"},
+        "avocado": {"body": "#7abf5a", "line": "#4f8a35", "shape": "pear"},
+    },
+)
+_add(
+    "round_food",
+    {
+        "bread": {"body": "#d8a05a", "line": "#9a6a2b", "ridges": "#b8844a"},
+        "bun": {"body": "#d8a05a", "line": "#9a6a2b"},
+        "cookie": {"body": "#c98a4d", "line": "#8a5a2b", "ridges": "#6e3f1f"},
+        "cake": {"body": "#f0c0d0", "line": "#b86a8a", "ridges": "#fff"},
+        "cupcake": {"body": "#f0b0c8", "line": "#b86a8a", "ridges": "#fff"},
+        "donut": {"body": "#d8a05a", "line": "#9a6a2b", "ridges": "#ef8ac0"},
+        "cheese": {"body": "#f5d45a", "line": "#c0a22b"},
+        "egg": {"body": "#f4f4f4", "line": "#b0b4b8"},
+        "carrot": {"body": "#f5871f", "line": "#c06a1a", "leaf": True},
+        "cucumber": {"body": "#4aa05a", "line": "#2b7a4b", "ridges": "#2b7a4b"},
+        "pepper": {"body": "#e2473b", "line": "#b0302a", "leaf": True},
+        "corn": {"body": "#f5d45a", "line": "#c0a22b", "ridges": "#c0a22b", "leaf": True},
+        "peas": {"body": "#5bbf6a", "line": "#3f9150", "ridges": "#3f9150"},
+        "bean": {"body": "#7abf5a", "line": "#4f8a35"},
+        "mushroom": {"body": "#d8b090", "line": "#9a6a50", "ridges": "#e2473b"},
+        "pizza": {"body": "#f5c56a", "line": "#c08a2b", "ridges": "#e2473b"},
+        "taco": {"body": "#e8b85a", "line": "#a8782a", "ridges": "#5bbf6a"},
+        "rice bowl": {"body": "#f4f4f4", "line": "#9aa0a6", "ridges": "#dfe3e6"},
+        "ice cream": {"body": "#f0b0d0", "line": "#b86a8a", "ridges": "#fff"},
+        "lollipop": {"body": "#e2478a", "line": "#a01f5a", "ridges": "#fff"},
+        "candy": {"body": "#7a5fd6", "line": "#4f3fa0", "ridges": "#fff"},
+        "coin": {"body": "#f5c23f", "line": "#c08a00", "ridges": "#d9a900"},
+        "button": {"body": "#7aa5d6", "line": "#4f78a8", "ridges": "#dfeaf6"},
+        "bubble": {"body": "#bfe3ff", "line": "#5f9fd0"},
+        "wheel": {"body": "#2c3038", "line": "#15181d", "ridges": "#9aa0a6"},
+        "clock face": {"body": "#f4f4f4", "line": "#6a6a6a", "ridges": "#6a6a6a"},
+        "compass face": {"body": "#e8f0ff", "line": "#4f78a8", "ridges": "#e2473b"},
+        "shield": {"body": "#7a5fd6", "line": "#4f3fa0", "ridges": "#dfe3e6"},
+        "medal": {"body": "#f5c23f", "line": "#c08a00", "ridges": "#fff"},
+    },
+)
+_add(
+    "tree",
+    {
+        "sprout": {"foliage": "#5bbf6a", "line": "#3f9150", "kind": "round", "trunk": "#5bbf6a"},
+        "seedling": {"foliage": "#5bbf6a", "line": "#3f9150", "kind": "round", "trunk": "#5bbf6a"},
+        "sapling": {"foliage": "#4aa05a", "line": "#2b7a4b", "kind": "round"},
+        "forest tree": {"foliage": "#2f8a52", "line": "#1f6a3a", "kind": "pine"},
+        "fir": {"foliage": "#2f8a52", "line": "#1f6a3a", "kind": "pine"},
+        "cedar": {"foliage": "#2d7a4a", "line": "#1d5a35", "kind": "pine"},
+        "cypress": {"foliage": "#2b7a4b", "line": "#1d5a35", "kind": "pine"},
+        "willow": {"foliage": "#6fae5a", "line": "#4f8a3a", "kind": "round"},
+        "maple": {"foliage": "#d85a3a", "line": "#9a3a20", "kind": "round"},
+        "birch": {"foliage": "#88bf6a", "line": "#5f8a4a", "kind": "round"},
+        "banana tree": {"foliage": "#4aa05a", "line": "#2b7a4b", "kind": "palm"},
+        "coconut tree": {"foliage": "#3fa46a", "line": "#2b7a4b", "kind": "palm"},
+        "cactus": {"foliage": "#4aa05a", "line": "#2b7a4b", "kind": "round", "trunk": "#4aa05a"},
+        "shrub": {"foliage": "#4aa05a", "line": "#2b7a4b", "kind": "round", "trunk": "#4aa05a"},
+        "hedge": {"foliage": "#4aa05a", "line": "#2b7a4b", "kind": "round", "trunk": "#4aa05a"},
+    },
+)
+_add(
+    "vehicle",
+    {
+        "sports car": {"body": "#e2473b", "line": "#a01f30", "kind": "car", "roof": "#f06a5e"},
+        "race car": {"body": "#f5c518", "line": "#c09a00", "kind": "car", "roof": "#fff"},
+        "pickup truck": {"body": "#3f7ad6", "line": "#2b56a0", "kind": "truck", "roof": "#5b8def"},
+        "delivery truck": {
+            "body": "#f4f4f4",
+            "line": "#6a6a6a",
+            "kind": "truck",
+            "roof": "#dfe3e6",
+        },
+        "dump truck": {"body": "#f5b800", "line": "#c08e00", "kind": "truck", "roof": "#d9a900"},
+        "garbage truck": {"body": "#5bbf6a", "line": "#3f9150", "kind": "truck", "roof": "#4aa05a"},
+        "tow truck": {"body": "#f5871f", "line": "#c06a1a", "kind": "truck"},
+        "minibus": {"body": "#f5b800", "line": "#c08e00", "kind": "bus"},
+        "coach": {"body": "#7aa5d6", "line": "#4f78a8", "kind": "bus"},
+        "school bus": {"body": "#f5c518", "line": "#c09a00", "kind": "bus"},
+        "tram": {"body": "#5bbf6a", "line": "#3f9150", "kind": "bus"},
+        "train car": {"body": "#7aa5d6", "line": "#4f78a8", "kind": "bus"},
+        "subway car": {"body": "#dfe3e6", "line": "#8a9098", "kind": "bus"},
+        "motorhome": {"body": "#f0ead8", "line": "#9a8f74", "kind": "truck"},
+        "camper van": {"body": "#f0ead8", "line": "#9a8f74", "kind": "truck"},
+        "scooter": {"body": "#e2478a", "line": "#a01f5a", "kind": "car", "roof": "#e2478a"},
+        "motorcycle": {"body": "#2c3038", "line": "#15181d", "kind": "car", "roof": "#2c3038"},
+        "bulldozer": {"body": "#f5b800", "line": "#c08e00", "kind": "truck"},
+        "excavator": {"body": "#f5b800", "line": "#c08e00", "kind": "truck"},
+        "crane truck": {"body": "#f5b800", "line": "#c08e00", "kind": "truck"},
+    },
+)
+_add(
+    "building",
+    {
+        "apartment": {"body": "#bfe3ff", "line": "#5f9fd0", "kind": "tower", "roof": "#4f78a8"},
+        "office": {"body": "#dfe3e6", "line": "#8a9098", "kind": "tower", "roof": "#6a7078"},
+        "museum": {"body": "#e8dcc0", "line": "#b09a6a", "kind": "house", "roof": "#8a5a3a"},
+        "theater": {"body": "#f0b0c8", "line": "#b86a8a", "kind": "house", "roof": "#8a3a5a"},
+        "cinema": {"body": "#2c3038", "line": "#15181d", "kind": "house", "roof": "#e2473b"},
+        "restaurant": {"body": "#ffcaa8", "line": "#d68a5e", "kind": "house", "roof": "#e2614b"},
+        "cafe": {"body": "#d8b090", "line": "#9a6a50", "kind": "house", "roof": "#8a5a3a"},
+        "bakery": {"body": "#f5d49a", "line": "#c79a4a", "kind": "house", "roof": "#d8a05a"},
+        "market": {"body": "#bfe3ff", "line": "#5f9fd0", "kind": "house", "roof": "#3fb950"},
+        "grocery store": {"body": "#bfe3ff", "line": "#5f9fd0", "kind": "house", "roof": "#3fb950"},
+        "bank": {"body": "#d8c49a", "line": "#a8884a", "kind": "house", "roof": "#8a5a3a"},
+        "post office": {"body": "#f5d49a", "line": "#c79a4a", "kind": "house", "roof": "#3f7ad6"},
+        "police station": {
+            "body": "#dfeaf6",
+            "line": "#4f78a8",
+            "kind": "house",
+            "roof": "#3a5fae",
+        },
+        "fire station": {"body": "#f4d0c8", "line": "#b03030", "kind": "house", "roof": "#e2473b"},
+        "airport": {"body": "#dfe3e6", "line": "#8a9098", "kind": "tower", "roof": "#6a7078"},
+        "station": {"body": "#dfe3e6", "line": "#8a9098", "kind": "house", "roof": "#4f78a8"},
+        "train station": {"body": "#dfe3e6", "line": "#8a9098", "kind": "house", "roof": "#4f78a8"},
+        "warehouse": {"body": "#9aa0a6", "line": "#666c72", "kind": "house", "roof": "#666c72"},
+        "greenhouse": {"body": "#cfeeb0", "line": "#6fa03f", "kind": "house", "roof": "#8ad6a0"},
+        "temple": {"body": "#e8dcc0", "line": "#b09a6a", "kind": "tower", "roof": "#d8a05a"},
+        "mosque": {"body": "#dfeaf6", "line": "#5f9fd0", "kind": "tower", "roof": "#4f78a8"},
+        "synagogue": {"body": "#e8dcc0", "line": "#b09a6a", "kind": "house", "roof": "#7a5fd6"},
+    },
+)
+_add(
+    "celestial",
+    {
+        "dwarf planet": {"body": "#cf9a7a", "line": "#9a6a4a", "kind": "moon"},
+        "exoplanet": {"body": "#7a5fd6", "line": "#4f3fa0", "kind": "ringed", "ring": "#caa46a"},
+        "gas giant": {"body": "#d8a86a", "line": "#a8783a", "kind": "ringed", "ring": "#caa46a"},
+        "ice giant": {"body": "#7ad6d6", "line": "#3fa0a0", "kind": "ringed", "ring": "#bcd3ff"},
+        "meteor": {"body": "#bcd3ff", "line": "#7aa5d6", "kind": "comet"},
+        "meteorite": {"body": "#9aa0a6", "line": "#666c72", "kind": "moon"},
+        "space rock": {"body": "#9aa0a6", "line": "#666c72", "kind": "moon"},
+        "star": {"body": "#ffd23f", "line": "#e0991b", "kind": "planet"},
+        "nebula": {"body": "#bf8acb", "line": "#8a5a9a", "kind": "ringed", "ring": "#7a5fd6"},
+    },
+)
+_add(
+    "blob",
+    {
+        "yeast": {"body": "#d6a05b", "line": "#a0702b"},
+        "spore": {"body": "#c0d65b", "line": "#90a02b"},
+        "algae": {"body": "#5bd6a0", "line": "#2fa070"},
+        "plankton": {"body": "#8acbcf", "line": "#4a9a9f"},
+        "parasite": {"body": "#bf8acb", "line": "#8a5a9a"},
+        "enzyme": {"body": "#9ad0ff", "line": "#4a90d9"},
+        "protein": {"body": "#f5c06a", "line": "#c8902b"},
+        "antibody": {"body": "#dfeaf6", "line": "#7aa5d6"},
+        "nutrient": {"body": "#f5d45a", "line": "#c0a22b"},
+        "toxin": {"body": "#8a5fa0", "line": "#5f3a70"},
+    },
+)
+_add(
+    "quad",
+    {
+        "skunk": {
+            "body": "#2c3038",
+            "line": "#4f5864",
+            "ear": "point",
+            "tail": "puff",
+            "belly": "#fff",
+        },
+        "meerkat": {"body": "#c0905a", "line": "#80582f", "ear": "round", "tail": "down"},
+        "lemur": {
+            "body": "#8d949c",
+            "line": "#3a3a3a",
+            "ear": "round",
+            "tail": "puff",
+            "snout": "#f2f2f2",
+        },
+        "opossum": {"body": "#d8d8d0", "line": "#7a7a70", "ear": "round", "tail": "down"},
+        "wombat": {"body": "#9a7a5a", "line": "#6a4e36", "ear": "round", "tail": "puff"},
+        "tapir": {
+            "body": "#5a4a42",
+            "line": "#352b26",
+            "ear": "round",
+            "tail": "down",
+            "snout": "#d8d0c8",
+        },
+        "capybara": {"body": "#9a6a3a", "line": "#6e4a22", "ear": "round", "tail": "puff"},
+        "anteater": {
+            "body": "#9a7a52",
+            "line": "#6e5436",
+            "ear": "round",
+            "tail": "puff",
+            "snout": "#d8c4a0",
+        },
+        "aardvark": {"body": "#b08a70", "line": "#705a45", "ear": "long", "tail": "down"},
+        "platypus": {
+            "body": "#8a5a3a",
+            "line": "#5e3c22",
+            "ear": "round",
+            "tail": "down",
+            "snout": "#d8b890",
+        },
+        "hyena": {"body": "#b8945a", "line": "#6e5436", "ear": "round", "tail": "down"},
+        "bulldog": {
+            "body": "#c8a070",
+            "line": "#7a5430",
+            "ear": "round",
+            "tail": "puff",
+            "snout": "#f0d8b8",
+        },
+        "poodle": {
+            "body": "#f2efe9",
+            "line": "#9a8f80",
+            "ear": "long",
+            "tail": "puff",
+            "belly": "#fff",
+        },
+        "collie": {
+            "body": "#c98a4d",
+            "line": "#8a5a2b",
+            "ear": "long",
+            "tail": "up",
+            "belly": "#fff",
+        },
+        "mastiff": {
+            "body": "#a8784a",
+            "line": "#6a4a2a",
+            "ear": "round",
+            "tail": "down",
+            "snout": "#d8b890",
+        },
+    },
+)
+_add(
+    "bird",
+    {
+        "goose": {"body": "#f2f2f2", "line": "#9aa0a6", "belly": "#fff", "beak": "#f5871f"},
+        "quail": {"body": "#a98a5a", "line": "#74582f", "belly": "#e0d0b0"},
+        "pheasant": {"body": "#b85a3a", "line": "#7a3824", "belly": "#e8c08a", "beak": "#f5b800"},
+        "vulture": {"body": "#5a4a42", "line": "#352b26", "belly": "#c8b8a0", "beak": "#d8a05a"},
+        "falcon": {"body": "#6e5a44", "line": "#48382a", "belly": "#e8d4a8", "beak": "#f5b800"},
+        "hawk": {"body": "#7a5a3a", "line": "#4e3a22", "belly": "#e8d0a8", "beak": "#f5b800"},
+        "puffin": {"body": "#2c3038", "line": "#15181d", "belly": "#fff", "beak": "#f5871f"},
+        "albatross": {"body": "#f4f4f4", "line": "#9aa0a6", "belly": "#fff", "beak": "#d9a900"},
+    },
+)
+_add(
+    "round_food",
+    {
+        "pancake": {"body": "#d8a05a", "line": "#9a6a2b", "ridges": "#c08a4a"},
+        "waffle": {"body": "#d8a05a", "line": "#9a6a2b", "ridges": "#8a5a2b"},
+        "pie": {"body": "#d8a05a", "line": "#9a6a2b", "ridges": "#b8844a"},
+        "sandwich": {"body": "#e8c48a", "line": "#a8783a", "ridges": "#5bbf6a"},
+        "burger": {"body": "#d8a05a", "line": "#9a6a2b", "ridges": "#5bbf6a"},
+        "hot dog": {"body": "#d8a05a", "line": "#9a6a2b", "ridges": "#c0392b"},
+        "sushi": {"body": "#f4f4f4", "line": "#2c3038", "ridges": "#ef6f6f"},
+        "noodle bowl": {"body": "#f4f4f4", "line": "#9aa0a6", "ridges": "#d8a05a"},
     },
 )
 
@@ -1456,3 +1938,26 @@ def compose_family(concept: str) -> dict | None:
 
 def known() -> list[str]:
     return sorted(CONCEPT_FAMILIES)
+
+
+def _load_overrides() -> None:
+    """Merge Studio-published family variants (asset_overrides.json) into the concept
+    table, so an approved variant resolves through the normal compose path. Overrides
+    are gated + human-approved before they land here (see engine.asset_studio)."""
+    import json as _json
+    import pathlib as _pathlib
+
+    path = _pathlib.Path(__file__).parent / "asset_overrides.json"
+    if not path.exists():
+        return
+    try:
+        data = _json.loads(path.read_text())
+    except Exception:
+        return
+    for concept, v in data.get("variants", {}).items():
+        fam = v.get("family")
+        if fam in FAMILIES and isinstance(v.get("params"), dict):
+            CONCEPT_FAMILIES[concept.strip().lower()] = (fam, dict(v["params"]))
+
+
+_load_overrides()
