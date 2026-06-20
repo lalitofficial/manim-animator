@@ -840,21 +840,47 @@ def _verb_from_direction(text: str) -> str | None:
     return None
 
 
-def _drawable_concept(style: str, *candidates: str) -> str | None:
-    """Find the first SHORT drawable noun across the candidate phrases (focus, then direction,
-    then beat) so the hero renders as a cartoon SUBJECT, not a labeled box — a story's focus is
-    often a name ('Mira') or a phrase ('rain forms'); the concrete subject hides in the prose.
-    Forward scan per phrase (the head noun leads); None if nothing in any candidate draws."""
+# Words that DRAW but aren't scene subjects: the host/presenter itself (already on stage), and
+# abstractions that happen to resolve to an icon. Mining these as props clutters with noise.
+_NON_SUBJECT = frozenset(
+    {
+        "guide", "host", "narrator", "presenter", "teacher", "character", "person", "people",
+        "scene", "thing", "things", "idea", "ideas", "way", "ways", "part", "parts", "step",
+        "steps", "question", "questions", "point", "points", "process", "world", "story",
+        "example", "concept", "fact", "reason", "problem", "answer",
+    }
+)  # fmt: skip
+
+
+def _stem(w: str) -> str:  # a crude plural fold for dedup (cloud≈clouds), not linguistics
+    return w[:-1] if len(w) > 4 and w.endswith("s") else w
+
+
+def _drawable_concepts(style: str, *candidates: str, limit: int = 3) -> list[str]:
+    """Mine DISTINCT short drawable nouns across the candidate phrases (focus → direction → beat),
+    in reading order, up to `limit`. The first is the hero (the subject that ACTS the process); the
+    rest stage AROUND it so a scene is a populated world, not one prop in an empty field — a story's
+    focus is often a name/phrase, and the concrete subjects hide in the prose. Skips the host word
+    and abstractions (_NON_SUBJECT) and folds plurals (cloud≈clouds) so props don't duplicate.
+    Drop-don't-repair: nothing drawable → an empty list (the caller falls back to the raw focus)."""
+    out: list[str] = []
+    stems: set[str] = set()
     for phrase in candidates:
         for raw in (phrase or "").lower().replace("-", " ").split():
             w = raw.strip(".,!?;:'\"()")
+            st = _stem(w)
             if (
                 len(w) > 2
+                and w not in _NON_SUBJECT
+                and st not in stems
                 and measure(Thing("p", w, Extent(1, 1)), generate=False, style=style).source
                 != "box"
             ):
-                return w
-    return None
+                out.append(w)
+                stems.add(st)
+                if len(out) >= limit:
+                    return out
+    return out
 
 
 def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
@@ -868,13 +894,17 @@ def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
         if not isinstance(sc, dict):
             continue
         focus = (sc.get("focus") or "").strip() or title
-        # The hero must be a drawable SUBJECT acting the process, not a labeled box. Prefer the
-        # focus, but mine the direction/beat for a concrete noun when the focus doesn't draw.
-        subject = (
-            _drawable_concept(style, focus, sc.get("direction") or "", sc.get("beat") or "")
-            or focus
-        )
+        # Stage the scene as a populated WORLD: mine several drawable SUBJECTS (not one prop in an
+        # empty field). The first that draws is the hero (it acts the process); the rest are props
+        # — or particles for small-and-many lexemes (rain, sparks). Fall back to the raw focus.
+        subjects = _drawable_concepts(
+            style, focus, sc.get("direction") or "", sc.get("beat") or ""
+        ) or [focus]
         hero = f"c{i}"
+        ents = [Entity(hero, subjects[0], role="hero")]
+        for k, w in enumerate(subjects[1:]):
+            ents.append(Entity(f"{hero}p{k}", w, role="particle" if w in _PARTICLE else "prop"))
+        enter_ids = tuple(e.id for e in ents)
         lines: list[str] = []  # the beat is the narration spine; add a distinct goal/turn for depth
         for raw in (sc.get("beat"), sc.get("goal"), sc.get("turn")):
             line = (raw or "").strip()
@@ -886,14 +916,16 @@ def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
         shots: list[Shot] = []
         for j, line in enumerate(lines):
             acts = (Action(verb, hero, dur="long"),) if (j == 0 and verb) else ()
-            shots.append(Shot(enter=(hero,) if j == 0 else (), say=line, actions=acts, hold="med"))
+            shots.append(
+                Shot(enter=enter_ids if j == 0 else (), say=line, actions=acts, hold="med")
+            )
         emotion = sc.get("emotion") if sc.get("emotion") in EMOTIONS else "curious"
         purpose = sc.get("purpose") if sc.get("purpose") in PURPOSES else "explain"
         scenes_out.append(
             ScenePlan(
                 id=f"s{i}",
-                setting=subject,
-                entities=(Entity(hero, subject, role="hero"),),
+                setting=subjects[0],
+                entities=tuple(ents),
                 shots=tuple(shots),
                 transition="fade",
                 purpose=purpose,

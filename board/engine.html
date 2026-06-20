@@ -179,27 +179,62 @@
           transform: rotate(4deg);
         }
       }
+      /* The subject ACTS the process — motion must read across the board, not nudge. The board
+         is ~525 units tall, so travel is in the 150–220 range (≈30–42% of height), not tens. */
       @keyframes act-rise {
         from {
           transform: translateY(0);
           opacity: 1;
         }
         to {
-          transform: translateY(-44px);
-          opacity: 0.25;
+          transform: translateY(-200px);
+          opacity: 0.08;
         }
       }
       @keyframes act-fall {
         0% {
-          transform: translateY(-22px);
-          opacity: 0.4;
+          transform: translateY(-180px);
+          opacity: 0.15;
         }
-        60% {
-          transform: translateY(8px);
+        70% {
+          transform: translateY(16px);
           opacity: 1;
         }
         100% {
           transform: translateY(0);
+        }
+      }
+      /* flow = water/air TRAVELS along a current (a drift-and-settle sweep), not a rotate-wobble */
+      @keyframes act-flow {
+        0% {
+          transform: translateX(0);
+        }
+        30% {
+          transform: translateX(70px) translateY(-8px);
+        }
+        65% {
+          transform: translateX(-50px) translateY(6px);
+        }
+        100% {
+          transform: translateX(0);
+        }
+      }
+      /* transform = a change of STATE (vapor→cloud): collapse, then re-form larger and settle */
+      @keyframes act-transform {
+        0% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        32% {
+          transform: scale(0.5) rotate(-6deg);
+          opacity: 0.4;
+        }
+        68% {
+          transform: scale(1.22) rotate(3deg);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1);
         }
       }
       @keyframes act-grow {
@@ -207,7 +242,7 @@
           transform: scale(1);
         }
         to {
-          transform: scale(1.3);
+          transform: scale(1.55);
         }
       }
       @keyframes act-shrink {
