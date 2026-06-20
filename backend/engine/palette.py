@@ -384,7 +384,9 @@ def ambient_for(concept: str | None) -> str:
     for k in words:  # match a whole word (so "starfish" doesn't glow)
         if k in _AMBIENT:
             return _AMBIENT[k]
-    return ""
+    # Nothing on a cartoon stage should be frozen: an unlisted subject gets a gentle SWAY
+    # (a slight rotate, never levitation) so the scene always breathes, even between verbs.
+    return "sway"
 
 
 def entrance_for(concept: str | None) -> str:

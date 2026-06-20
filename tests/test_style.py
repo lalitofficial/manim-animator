@@ -158,7 +158,9 @@ def test_ambient_and_entrance_defaults():
     assert palette.ambient_for("vapor") == "rise"
     assert palette.ambient_for("cloud") == "float"
     assert palette.ambient_for("presenter") == "bob"
-    assert palette.ambient_for("democracy") == ""  # abstract -> no motion
+    # Nothing on a cartoon stage is frozen: an unlisted/abstract concept gets a gentle SWAY
+    # idle (the explanatory motions above still win for concepts whose nature implies one).
+    assert palette.ambient_for("democracy") == "sway"
     assert palette.entrance_for("teacher") == "rise"
     assert palette.entrance_for("sun") == "draw"
 
