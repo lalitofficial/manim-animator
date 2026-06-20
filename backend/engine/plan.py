@@ -449,6 +449,11 @@ def compile_plan(
     grass_y = -board.hh + palette.HORIZON_FRAC * board.h  # the ground line props should sit on
     real = placeholders = dropped = 0
     by_source: dict[str, int] = {}
+    # The host's teaching gesture ROTATES so it performs (points, presents, explains) instead of
+    # holding one identical pose every beat. `point` stays dominant (clear, strong pointing); the
+    # head turns toward the concept in every case (set below), so variety never loses the deixis.
+    gesture_i = 0
+    teach_gestures = ("point", "present", "point", "explain")
 
     yield {
         "type": "start",
@@ -587,7 +592,11 @@ def compile_plan(
                 elif a.verb in ("point", "look") and a.actor in chars and a.actor in pmap:
                     # Character ACTS: re-pose the rig (a real gesture) AND turn its head toward
                     # the target's position (it looks at what it points to), then emphasize it.
-                    pose = "point" if a.verb == "point" else "think"
+                    if a.verb == "look":
+                        pose = "think"
+                    else:
+                        pose = teach_gestures[gesture_i % len(teach_gestures)]
+                        gesture_i += 1
                     ga2 = {**tmap[a.actor].geometry_attrs, "pose": pose}
                     if a.target in pmap:  # head turns toward the target's side of the board
                         dx = pmap[a.target].x - pmap[a.actor].x
