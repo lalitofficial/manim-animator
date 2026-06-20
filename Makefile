@@ -53,6 +53,9 @@ vendor-icons: ## Vendor more Tabler line icons (MIT) into the catalog + alias in
 sync-excalidraw: ## Sync ALL Excalidraw libraries (MIT) into normalized candidate packs (pass N=10 to limit)
 	PYTHONPATH=backend uv run python scripts/sync_excalidraw.py $(N)
 
+sync-bioicons: ## Sync Bioicons scientific SVGs into COLORED candidate packs (pass D=biology|chemistry, N=20 to limit)
+	PYTHONPATH=backend uv run python scripts/sync_bioicons.py $(D) $(N)
+
 lesson: ## Render a full lesson end-to-end (pass T="a topic") -> build/engine/lesson.svg
 	PYTHONPATH=backend uv run python -m engine.bench_lesson $(T)
 
