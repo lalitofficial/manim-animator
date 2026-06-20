@@ -307,6 +307,33 @@
         font-size: 12px;
         text-decoration: none;
       }
+      /* Clean export surface (?clean=1): no app chrome — just the board + a video-grade caption,
+         full-bleed, so a recorder films the lesson, not the UI. */
+      body.clean {
+        margin: 0;
+        padding: 0;
+        background: #0d1117;
+      }
+      body.clean > *:not(#board):not(#caption) {
+        display: none !important;
+      }
+      body.clean #board {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        border-radius: 0;
+        margin: 0;
+      }
+      body.clean #caption {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 4vh;
+        margin: 0 auto;
+        max-width: 88vw;
+        font-size: 3.4vh;
+        z-index: 10;
+      }
     </style>
   </head>
   <body>

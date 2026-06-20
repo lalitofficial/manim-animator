@@ -886,5 +886,32 @@ sfxToggle.addEventListener('click', () => {
 });
 document.body.appendChild(sfxToggle);
 
+// URL-driven playback: a recorder/export just navigates to a URL. `?clean=1` strips the app
+// chrome to a board-only surface; mode/audience/style/topic preset the controls; a topic (or
+// ?autostart=1) plays the lesson on load — no clicking needed.
+(() => {
+  const q = new URLSearchParams(location.search);
+  if (q.get('clean') === '1') document.body.classList.add('clean');
+  const applyChip = (attr, val) => {
+    for (const c of document.querySelectorAll(`[data-${attr}]`)) {
+      c.classList.toggle('active', c.dataset[attr] === val);
+    }
+  };
+  if (q.get('mode')) {
+    mode = q.get('mode');
+    applyChip('mode', mode);
+  }
+  if (q.get('audience')) {
+    audience = q.get('audience');
+    applyChip('aud', audience);
+  }
+  if (q.get('style')) {
+    style = q.get('style');
+    applyChip('style', style);
+  }
+  if (q.get('topic')) topicInput.value = q.get('topic');
+  if (q.get('topic') || q.get('autostart') === '1') setTimeout(teach, 60);
+})();
+
 loadStatus();
 playPendingStoryTimeline();
