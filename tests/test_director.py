@@ -51,6 +51,16 @@ def test_derived_knobs():
 def test_to_dict_includes_derived():
     d = to_dict(direct("x"))
     assert {"mode", "audience", "concept_count", "draw_speed", "say_dwell"} <= d.keys()
+    assert {"domain", "domain_confidence", "fmt"} <= d.keys()  # the two-axis classifier
+
+
+def test_fmt_is_recommended_from_domain_and_mode():
+    # the format axis defaults to the mode's natural genre
+    assert direct("x", mode="learn").fmt == "concept-map"
+    assert direct("x", mode="story").fmt == "narrative-story"
+    assert direct("x", mode="explain").fmt == "process"
+    # a typed domain upgrades the recommendation (advisory in P0)
+    assert direct("the pythagorean theorem").fmt == "equation-walkthrough"  # math + learn
 
 
 def test_length_drives_scene_count():

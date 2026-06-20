@@ -246,6 +246,26 @@ def engine_director(
     return to_dict(spec)
 
 
+@app.get("/api/engine/classify")
+def engine_classify(topic: str = "photosynthesis", request: str | None = None):
+    """Preview the Director's SUBJECT classification of a topic: domain + confidence +
+    recommended presentation format, plus the raw per-domain cue scores. The internal
+    'thought engine' decision, made observable (docs/PLAN-director-domains-and-liveliness.md)."""
+    from engine import semantics
+    from engine.director import direct
+
+    spec = direct(topic, request=request)
+    m = semantics.classify(topic)
+    return {
+        "topic": topic,
+        "domain": spec.domain,
+        "confidence": spec.domain_confidence,
+        "fmt": spec.fmt,
+        "mode": spec.mode,
+        "scores": {k: v for k, v in m.scores.items() if v > 0},  # only domains that matched
+    }
+
+
 @app.get("/api/engine/lesson")
 def engine_lesson(
     topic: str = "the water cycle",

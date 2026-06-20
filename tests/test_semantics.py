@@ -43,21 +43,48 @@ def _seed(concept: str, title: str, set_name: str):
 # Domain inference
 # --------------------------------------------------------------------------- #
 def test_infer_domain():
+    # established tech/weather domains keep priority (declared first ⇒ win ties)
     assert semantics.infer_domain("whats azure cloud") == "cloud-computing"
     assert semantics.infer_domain("kubernetes basics") == "cloud-computing"
     assert semantics.infer_domain("aws architecture") == "cloud-computing"
-    # weather/general topics must NOT classify as cloud-computing
     assert semantics.infer_domain("types of clouds") == "weather"
     assert semantics.infer_domain("the water cycle") == "weather"
-    assert semantics.infer_domain("photosynthesis") == ""
     assert semantics.infer_domain("why the sky is blue") == "weather"
+    # NEW subject domains now classify (these were all "" before)
+    assert semantics.infer_domain("photosynthesis") == "biology"
+    assert semantics.infer_domain("the pythagorean theorem") == "mathematics"
+    assert semantics.infer_domain("the force of gravity") == "physics"
+    assert semantics.infer_domain("a chemical reaction") == "chemistry"
+    assert semantics.infer_domain("world war ii") == "history"
+    assert semantics.infer_domain("supply and demand") == "economics"
+    assert semantics.infer_domain("the solar system") == "astronomy"
+    # a topic with no cues stays general
+    assert semantics.infer_domain("my summer vacation") == ""
+
+
+def test_classify_confidence_and_scores():
+    m = semantics.classify("the pythagorean theorem")
+    assert m.domain == "mathematics" and m.confidence > 0.0
+    assert m.scores["mathematics"] >= 1
+    # no signal → empty domain, zero confidence
+    none = semantics.classify("my summer vacation")
+    assert none.domain == "" and none.confidence == 0.0
+    # a decisive single signal saturates confidence high
+    strong = semantics.classify("aws lambda functions")
+    assert strong.domain == "cloud-computing" and strong.confidence >= 0.8
+    # regression: the "aws" strong-signal must match a WHOLE WORD, not a substring of "laws"
+    m2 = semantics.classify("newtons laws of motion")
+    assert m2.domain == "physics" and m2.scores["cloud-computing"] == 0
 
 
 def test_director_infers_domain():
     spec = director.direct("whats azure cloud", mode="learn", style="cartoon")
-    assert spec.domain == "cloud-computing"
+    assert spec.domain == "cloud-computing" and spec.domain_confidence > 0.0
     spec2 = director.direct("photosynthesis", mode="learn")
-    assert spec2.domain == ""
+    assert spec2.domain == "biology" and spec2.domain_confidence > 0.0
+    # an explicitly-set domain is trusted (confidence 1.0)
+    spec3 = director.direct("anything", domain="chemistry")
+    assert spec3.domain == "chemistry" and spec3.domain_confidence == 1.0
 
 
 # --------------------------------------------------------------------------- #

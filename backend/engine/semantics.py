@@ -136,6 +136,301 @@ DOMAINS: tuple[Domain, ...] = (
         sets=("weather", "clouds"),
         force=(),  # weather KEEPS cartoon cloud/rain — never override to a tech icon
     ),
+    # --- SUBJECT domains (the "what is this topic about" axis) -------------------- #
+    # These have no member `sets`/`force` YET — they classify the topic so the Director
+    # can route to the right asset strategy and prime the Story prompt. As domain asset
+    # libraries land (Bioicons → biology, …) we fill in `sets`/`force` and resolution
+    # lights up with no other change (docs/PLAN-director-domains-and-liveliness.md).
+    Domain(
+        "biology",
+        cues=(
+            "biology",
+            "cell",
+            "cells",
+            "dna",
+            "rna",
+            "gene",
+            "genetics",
+            "genome",
+            "enzyme",
+            "protein",
+            "photosynthesis",
+            "respiration",
+            "mitochondria",
+            "chloroplast",
+            "chromosome",
+            "organism",
+            "evolution",
+            "natural selection",
+            "bacteria",
+            "virus",
+            "neuron",
+            "ecosystem",
+            "ecology",
+            "membrane",
+            "mitosis",
+            "meiosis",
+            "immune",
+            "antibody",
+            "species",
+            "anatomy",
+            "physiology",
+        ),
+        # Bioicons category tokens → tag those published packs as biology (substring match
+        # against the pack's set_name/library). `force` stays empty: bioicons fill GAPS only,
+        # never override an existing cartoon recipe/family (e.g. the `cell`/`neuron` families).
+        sets=(
+            "genetics",
+            "genomics",
+            "cell",
+            "tissue",
+            "virus",
+            "microbiology",
+            "blood",
+            "immunology",
+            "physiology",
+            "plant",
+            "algae",
+            "animal",
+            "receptor",
+            "epigenetics",
+            "nucleic",
+            "peptide",
+            "intracellular",
+            "extracellular",
+            "anatomy",
+        ),
+        force=(),
+    ),
+    Domain(
+        "chemistry",
+        cues=(
+            "chemistry",
+            "chemical",
+            "molecule",
+            "molecular",
+            "atom",
+            "atoms",
+            "element",
+            "compound",
+            "reaction",
+            "bond",
+            "acid",
+            "alkali",
+            "ion",
+            "periodic table",
+            "oxidation",
+            "reduction",
+            "catalyst",
+            "solvent",
+            "polymer",
+            "isotope",
+            "valence",
+            "stoichiometry",
+            "electrolysis",
+        ),
+        sets=(
+            "chemistry",
+            "amino",
+            "bioinformatics",
+            "molecular",
+            "nanotech",
+            "chemo",
+        ),
+        force=(),
+    ),
+    Domain(
+        "physics",
+        cues=(
+            "physics",
+            "force",
+            "forces",
+            "gravity",
+            "gravitational",
+            "velocity",
+            "acceleration",
+            "momentum",
+            "newton",
+            "motion",
+            "kinetic energy",
+            "potential energy",
+            "friction",
+            "magnet",
+            "magnetism",
+            "magnetic",
+            "electric",
+            "electricity",
+            "voltage",
+            "circuit",
+            "quantum",
+            "relativity",
+            "thermodynamics",
+            "wave",
+            "waves",
+            "frequency",
+            "optics",
+            "refraction",
+            "nuclear",
+            "radioactive",
+            "particle",
+        ),
+        sets=(),
+        force=(),
+    ),
+    Domain(
+        "mathematics",
+        cues=(
+            "math",
+            "mathematics",
+            "equation",
+            "theorem",
+            "algebra",
+            "geometry",
+            "calculus",
+            "derivative",
+            "integral",
+            "trigonometry",
+            "polynomial",
+            "matrix",
+            "matrices",
+            "probability",
+            "statistics",
+            "fibonacci",
+            "prime number",
+            "pythagorean",
+            "logarithm",
+            "quadratic",
+            "factorial",
+            "sine",
+            "cosine",
+            "number theory",
+        ),
+        sets=(),
+        force=(),
+    ),
+    Domain(
+        "astronomy",
+        cues=(
+            "astronomy",
+            "planet",
+            "planets",
+            "star",
+            "stars",
+            "galaxy",
+            "solar system",
+            "orbit",
+            "comet",
+            "asteroid",
+            "nebula",
+            "black hole",
+            "universe",
+            "cosmos",
+            "telescope",
+            "constellation",
+            "eclipse",
+            "meteor",
+            "spacecraft",
+            "satellite",
+            "supernova",
+        ),
+        sets=(),
+        force=(),
+    ),
+    Domain(
+        "earth-science",
+        cues=(
+            "geography",
+            "geology",
+            "volcano",
+            "earthquake",
+            "tectonic",
+            "plate tectonics",
+            "erosion",
+            "mountain",
+            "river",
+            "ocean",
+            "continent",
+            "country",
+            "capital city",
+            "mineral",
+            "fossil",
+            "glacier",
+            "desert",
+            "biome",
+        ),
+        sets=(),
+        force=(),
+    ),
+    Domain(
+        "history",
+        cues=(
+            "history",
+            "historical",
+            "ancient",
+            "empire",
+            "revolution",
+            "battle",
+            "civilization",
+            "dynasty",
+            "medieval",
+            "colonial",
+            "independence",
+            "treaty",
+            "world war",
+            "cold war",
+            "renaissance",
+            "pharaoh",
+            "roman empire",
+        ),
+        sets=(),
+        force=(),
+    ),
+    Domain(
+        "economics",
+        cues=(
+            "economics",
+            "economy",
+            "economic",
+            "market",
+            "supply and demand",
+            "inflation",
+            "gdp",
+            "trade",
+            "currency",
+            "stock market",
+            "investment",
+            "interest rate",
+            "monetary",
+            "fiscal",
+            "recession",
+            "finance",
+            "banking",
+        ),
+        sets=(),
+        force=(),
+    ),
+    Domain(
+        "language",
+        cues=(
+            "grammar",
+            "vocabulary",
+            "verb",
+            "noun",
+            "adjective",
+            "syntax",
+            "tense",
+            "pronunciation",
+            "linguistics",
+            "literature",
+            "poetry",
+            "metaphor",
+            "alphabet",
+            "spelling",
+            "etymology",
+        ),
+        sets=(),
+        force=(),
+    ),
 )
 
 # Synonyms widen a plain noun toward the words icon titles actually use.
@@ -159,23 +454,49 @@ def _norm(s: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Domain inference from the topic.
+# Domain inference from the topic (the SUBJECT-classifier the Director routes on).
 # --------------------------------------------------------------------------- #
-def infer_domain(topic: str) -> str:
-    """The best-matching domain for a topic, or "" (general/cartoon)."""
+_STRONG = ("azure", "aws", "gcp", "kubernetes", "docker")  # one token decides cloud-computing
+
+
+@dataclass(frozen=True)
+class DomainMatch:
+    """The Director's subject-classification of a topic."""
+
+    domain: str  # winning domain id, or "" (general/cartoon)
+    confidence: float  # 0.0 (no signal) .. ~1.0 (decisive); heuristic
+    scores: dict[str, int]  # per-domain raw cue score (observability / debugging)
+
+
+def _score(padded_topic: str, d: Domain) -> int:
+    def hit(cue: str) -> bool:  # whole-word match ("aws" must not fire inside "laws")
+        return f" {cue} " in padded_topic or padded_topic.strip() == cue
+
+    score = sum(1 for cue in d.cues if hit(cue))
+    # a strong single signal (azure/aws/kubernetes in the title) is decisive
+    score += sum(2 for cue in _STRONG if cue in d.cues and hit(cue))
+    return score
+
+
+def classify(topic: str) -> DomainMatch:
+    """Classify a topic into a subject DOMAIN with a confidence + the raw per-domain scores.
+    Deterministic + hermetic (keyword cues). Ties resolve to the earliest-declared domain,
+    so the established tech/weather domains keep priority (back-compat)."""
     t = f" {_norm(topic)} "
+    scores = {d.id: _score(t, d) for d in DOMAINS}
     best, best_score = "", 0
-    for d in DOMAINS:
-        score = sum(1 for cue in d.cues if f" {cue} " in t or t.strip() == cue)
-        # a strong single signal (azure/aws/kubernetes in the title) is decisive
-        score += sum(
-            2
-            for cue in ("azure", "aws", "gcp", "kubernetes", "docker")
-            if cue in t and cue in d.cues
-        )
-        if score > best_score:
-            best, best_score = d.id, score
-    return best if best_score > 0 else ""
+    for d in DOMAINS:  # declaration order ⇒ first wins ties
+        if scores[d.id] > best_score:
+            best, best_score = d.id, scores[d.id]
+    # Heuristic confidence: 0 cues → 0.0; then 1→0.63, 2→0.81, 3→0.99, saturating at 1.0.
+    conf = 0.0 if best_score == 0 else round(min(1.0, 0.45 + 0.18 * best_score), 2)
+    return DomainMatch(domain=best, confidence=conf, scores=scores)
+
+
+def infer_domain(topic: str) -> str:
+    """The best-matching domain for a topic, or "" (general/cartoon). Thin wrapper over
+    `classify` for the many call sites that only need the id."""
+    return classify(topic).domain
 
 
 def _domain(domain_id: str) -> Domain | None:

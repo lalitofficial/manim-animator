@@ -80,6 +80,19 @@ def test_engine_director_endpoint(client):
     assert r.status_code == 200
     spec = r.json()
     assert spec["audience"] == "child" and "concept_count" in spec
+    assert spec["fmt"] == "concept-map"  # second classifier axis surfaced (learn → concept-map)
+
+
+def test_engine_classify_endpoint(client):
+    r = client.get("/api/engine/classify", params={"topic": "the pythagorean theorem"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["domain"] == "mathematics" and body["confidence"] > 0.0
+    assert body["fmt"] == "equation-walkthrough"  # math topic upgrades the format
+    assert body["scores"].get("mathematics", 0) >= 1
+    # a topic with no cues classifies as general with zero confidence
+    none = client.get("/api/engine/classify", params={"topic": "my summer vacation"}).json()
+    assert none["domain"] == "" and none["confidence"] == 0.0
 
 
 def test_engine_status_reports_providers(client):
