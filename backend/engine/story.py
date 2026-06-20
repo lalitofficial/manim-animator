@@ -803,9 +803,83 @@ def _day_night_plan(spec: DirectorSpec, P):
     return P.LessonPlan("Day and Night", (scene,), style=spec.style)
 
 
+def _photosynthesis_plan(spec: DirectorSpec, P):
+    cartoon = spec.style == "cartoon"
+
+    def point(target: str):
+        return (P.Action("point", "guide", target),) if cartoon else ()
+
+    # Real things draw as icons (sun/tree/water); the gases (CO2/O2) have no icon, so they land
+    # as the kinetic-text backstop — a deliberate showcase of typography-as-asset in a real lesson.
+    ents = [
+        P.Entity(
+            "title",
+            "text",
+            "text",
+            appearance={"text": "Photosynthesis", "font": 0.55},
+            place=at("top"),
+        ),
+        P.Entity("sun", "sun", role="hero"),
+        P.Entity("plant", "tree", role="hero"),
+        P.Entity("water", "water", role="particle"),
+        P.Entity("co2", "carbon dioxide", role="prop"),
+        P.Entity("oxygen", "oxygen", role="prop"),
+    ]
+    shots = [
+        P.Shot(
+            "establishing",
+            enter=("title", "plant", "sun"),
+            say="A green plant makes its own food from light, air, and water.",
+            actions=(P.Action("pulse", "plant", dur="long"), *point("plant")),
+            hold="short",
+        ),
+        P.Shot(
+            "medium",
+            focus="sun",
+            enter=(),
+            say="Its leaves capture energy from the sun's light.",
+            actions=(P.Action("pulse", "sun", dur="long"), *point("sun")),
+            hold="short",
+        ),
+        P.Shot(
+            "medium",
+            focus="water",
+            enter=("water",),
+            say="Its roots drink water from the soil, and it rises up the stem.",
+            actions=(P.Action("rise", "water", dur="long"), *point("water")),
+            hold="short",
+        ),
+        P.Shot(
+            "medium",
+            focus="co2",
+            enter=("co2",),
+            say="The leaves breathe in carbon dioxide from the air.",
+            actions=point("co2"),
+            hold="short",
+        ),
+        P.Shot(
+            "wide",
+            enter=("oxygen",),
+            say="With the sun's energy it makes sugar to grow — and breathes out fresh oxygen.",
+            actions=(P.Action("rise", "oxygen", dur="long"), *point("oxygen")),
+            hold="long",
+        ),
+    ]
+    scene = P.ScenePlan(
+        "s0",
+        setting="sky",
+        entities=tuple(ents),
+        shots=tuple(shots),
+        purpose="explain",
+        emotion="wonder",
+    )
+    return P.LessonPlan("Photosynthesis", (scene,), style=spec.style)
+
+
 _PROCESS_CUES: tuple[tuple[str, object], ...] = (
     ("water cycle", _water_cycle_plan),
     ("day and night", _day_night_plan),
+    ("photosynthesis", _photosynthesis_plan),
 )
 
 
