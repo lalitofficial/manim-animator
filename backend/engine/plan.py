@@ -722,9 +722,25 @@ def parse_plan(data: dict, title: str | None = None, style: str | None = None) -
     )
 
 
+_DIRECTIONAL = frozenset({"rise", "fall", "flow"})
+
+
+def _nature_action(concept: str, entity: str) -> Action:
+    """The motion a prop performs BY ITS NATURE: rising vapor rises, falling rain falls,
+    flowing water flows — anything else gets a gentle emphasis pulse. So every prop ACTS
+    (no static props), the same choreography the authored exemplars use."""
+    amb = palette.ambient_for(concept)
+    verb = amb if amb in _DIRECTIONAL else "pulse"
+    return Action(verb, entity, dur="long" if verb in _DIRECTIONAL else "med")
+
+
 def lift_beats(beats: list[Beat], title: str = "lesson", style: str = "cartoon") -> LessonPlan:
     """Beats → a LessonPlan: each `clear` starts a Scene, each `say` opens a Shot, each
-    `show` is an Entity entering the current shot, each `connect` a connect Action."""
+    `show` is an Entity entering the current shot, each `connect` a connect Action.
+
+    In cartoon, every shown prop is also given a nature MOTION + the presenter POINTS at it —
+    so an LLM lesson (Gemini) is a directed cartoon (props act, host teaches), not static props
+    beside a passive presenter. This is the exemplar's choreography applied to any model's beats."""
     scenes: list[ScenePlan] = []
     ents: list[Entity] = []
     shots: list[Shot] = []
@@ -788,6 +804,9 @@ def lift_beats(beats: list[Beat], title: str = "lesson", style: str = "cartoon")
                 )
             )
             cur_enter.append(b.entity)
+            if style == palette.CARTOON and kind == "prop":  # make it ACT + have the host point
+                cur_actions.append(_nature_action(b.concept or b.entity, b.entity))
+                cur_actions.append(Action("point", "guide", b.entity))
         elif b.kind == "connect" and b.entity and b.target:
             cur_actions.append(
                 Action("connect", b.entity, b.target, {"label": b.text} if b.text else {})

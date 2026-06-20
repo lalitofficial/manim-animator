@@ -128,6 +128,23 @@ def test_lift_beats_infers_semantic_roles_in_cartoon():
     assert set(white.values()) == {None}
 
 
+def test_lift_beats_makes_props_act_and_host_point_in_cartoon():
+    """An LLM lesson is a directed cartoon, not static props: each shown prop gets a nature
+    MOTION (rising/falling/flowing or an emphasis pulse) AND the presenter POINTS at it."""
+    beats = [show("rain", "rain"), show("tree", "tree")]
+    acts = [a for sh in lift_beats(beats, "weather").scenes[0].shots for a in sh.actions]
+    verbs = [a.verb for a in acts]
+    assert verbs.count("point") == 2  # host points at each prop
+    # each prop also ACTS — a directional nature verb (rain falls) or a pulse, never nothing
+    motions = [a for a in acts if a.verb != "point"]
+    assert len(motions) == 2 and all(a.verb in ("rise", "fall", "flow", "pulse") for a in motions)
+    # whiteboard stays a plain diagram — no auto motion / pointing
+    wb = [
+        a for sh in lift_beats(beats, "x", style="whiteboard").scenes[0].shots for a in sh.actions
+    ]
+    assert not wb
+
+
 def test_scene_emotion_drives_face_warmth_and_pacing():
     """Emotion is first-class director intent: it sets the host's FACE, warms the BACKDROP,
     and PACES the beat (tension cuts quick, joy lingers) — the same staging FEELS different."""
