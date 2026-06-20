@@ -6,8 +6,6 @@ isolates the candidate store. No network.
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from engine import bioicons, candidates_store, drawing, semantics
@@ -43,30 +41,15 @@ def test_security_rejects_script():
 
 
 def _fake_tree(root):
-    """A minimal Bioicons checkout: <root>/static/icons/<license>/<category>/<name>.svg + manifest."""
+    """A minimal Bioicons checkout matching the REAL layout:
+    <root>/static/icons/<license>/<category>/<author>/<name>.svg (icons nest under an author)."""
     icons = root / "static" / "icons"
-    (icons / "cc-0" / "Intracellular_components").mkdir(parents=True)
-    (icons / "cc-by-4.0" / "Chemistry").mkdir(parents=True)
-    (icons / "cc-0" / "Intracellular_components" / "spliceosome.svg").write_text(_SQUARE)
-    (icons / "cc-by-4.0" / "Chemistry" / "benzene.svg").write_text(_SQUARE)
-    (icons / "icons.json").write_text(
-        json.dumps(
-            [
-                {
-                    "name": "spliceosome",
-                    "category": "Intracellular_components",
-                    "license": "cc-0",
-                    "author": "Jane Doe",
-                },
-                {
-                    "name": "benzene",
-                    "category": "Chemistry",
-                    "license": "cc-by-4.0",
-                    "author": "Bob",
-                },
-            ]
-        )
+    (icons / "cc-0" / "Intracellular_components" / "Jane-Doe").mkdir(parents=True)
+    (icons / "cc-by-4.0" / "Chemistry" / "Bob-Smith").mkdir(parents=True)
+    (icons / "cc-0" / "Intracellular_components" / "Jane-Doe" / "spliceosome.svg").write_text(
+        _SQUARE
     )
+    (icons / "cc-by-4.0" / "Chemistry" / "Bob-Smith" / "benzene.svg").write_text(_SQUARE)
     return root
 
 

@@ -226,8 +226,8 @@ def _authors(icons_dir: Path) -> dict[tuple[str, str, str], str]:
 def import_tree(
     root, categories=None, limit_per_category: int | None = None, progress=None
 ) -> dict:
-    """Walk a LOCAL Bioicons checkout (``<root>/static/icons/<license>/<category>/*.svg``) and
-    save ONE candidate pack per category. `categories` (category folder names) restricts the
+    """Walk a LOCAL Bioicons checkout (``<root>/static/icons/<license>/<category>/<author>/*.svg``)
+    and save ONE candidate pack per category. `categories` (category folder names) restricts the
     import; None imports everything. Returns a summary dict."""
     from engine import candidates_store
 
@@ -245,7 +245,7 @@ def import_tree(
             cat = cat_dir.name
             if want is not None and cat not in want:
                 continue
-            files = sorted(cat_dir.glob("*.svg"))
+            files = sorted(cat_dir.rglob("*.svg"))  # icons nest under an AUTHOR folder
             if limit_per_category:
                 files = files[:limit_per_category]
             for svg_file in files:
@@ -253,7 +253,12 @@ def import_tree(
                     svg_text = svg_file.read_text()
                 except Exception:  # noqa: BLE001 - one unreadable file never sinks the pack
                     continue
-                author = authors.get((lic, cat, svg_file.stem), "")
+                # the icon's folder IS its author (…/<category>/<author>/<name>.svg); fall back to
+                # the manifest when a file sits directly in the category (flat layouts / tests).
+                if svg_file.parent != cat_dir:
+                    author = svg_file.parent.name.replace("-", " ")
+                else:
+                    author = authors.get((lic, cat, svg_file.stem), "")
                 packs.setdefault(cat, []).append(
                     build_item(svg_file.stem, cat, label, author, svg_text)
                 )
