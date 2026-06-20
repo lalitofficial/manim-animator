@@ -856,6 +856,17 @@ def _stem(w: str) -> str:  # a crude plural fold for dedup (cloud≈clouds), not
     return w[:-1] if len(w) > 4 and w.endswith("s") else w
 
 
+# When the scene's DIRECTION names no motion, the hero still acts — matched to its nature.
+_NATURE_VERB = {"rise": "rise", "fall": "fall", "flow": "flow"}
+
+
+def _default_verb(concept: str) -> str:
+    """Every scene's hero must ACT the process, even when the direction text is mute: rising gas
+    rises, falling rain falls, flowing water flows — else the hero GROWS into focus (a 'here it
+    happens' beat). A subject is never a frozen prop."""
+    return _NATURE_VERB.get(palette.ambient_for(concept), "grow")
+
+
 def _drawable_concepts(style: str, *candidates: str, limit: int = 3) -> list[str]:
     """Mine DISTINCT short drawable nouns across the candidate phrases (focus → direction → beat),
     in reading order, up to `limit`. The first is the hero (the subject that ACTS the process); the
@@ -912,7 +923,9 @@ def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
                 lines.append(line)
         if not lines:
             lines = [focus]
-        verb = _verb_from_direction(f"{sc.get('direction', '')} {sc.get('beat', '')}")
+        verb = _verb_from_direction(
+            f"{sc.get('direction', '')} {sc.get('beat', '')}"
+        ) or _default_verb(subjects[0])
         shots: list[Shot] = []
         for j, line in enumerate(lines):
             acts = (Action(verb, hero, dur="long"),) if (j == 0 and verb) else ()
