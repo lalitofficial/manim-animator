@@ -99,6 +99,14 @@ def _norm(concept: str) -> str:
     return _ALIASES.get(c, c)
 
 
+def _size(thing: Thing, fallback: float = 2.0) -> float:
+    """Resolve a Thing's target board size: explicit `size` wins, else the concept's
+    semantic size (a cloud bigger than a coin), else `fallback`."""
+    from engine import sizes
+
+    return float(thing.geometry_attrs.get("size", sizes.size_for(thing.concept, fallback)))
+
+
 def _key(thing: Thing, style: str = "whiteboard") -> tuple:
     # geometry_attrs are part of the key; paint_attrs (color) are NOT (§2). style is in
     # the key because cartoon skips the line-catalog rung (so the resolution differs).
@@ -215,7 +223,7 @@ def _catalog(thing: Thing) -> Drawable | None:
     svg = _catalog_lookup(thing.concept)
     if not svg:
         return None
-    target = float(thing.geometry_attrs.get("size", 2.0))
+    target = _size(thing)
     d = svgnorm.sanitize_to_drawable(svg, target=target)
     return replace(d, source="catalog") if d is not None else None
 
@@ -306,7 +314,7 @@ def _published(thing: Thing) -> Drawable | None:
     )
     x0, y0, x1, y1 = g.strokes_bbox(strokes)
     span = max(x1 - x0, y1 - y0, 1e-6)
-    target = float(thing.geometry_attrs.get("size", 2.0))
+    target = _size(thing)
     strokes = g.transform(strokes, 0.0, 0.0, target / span)
     x0, y0, x1, y1 = g.strokes_bbox(strokes)
     return Drawable(
@@ -324,7 +332,7 @@ def _icon(thing: Thing) -> Drawable | None:
         return None
     x0, y0, x1, y1 = g.strokes_bbox(strokes)
     span = max(x1 - x0, y1 - y0, 1e-6)
-    target = float(thing.geometry_attrs.get("size", 2.0))
+    target = _size(thing)
     strokes = g.transform(strokes, 0.0, 0.0, target / span)
     x0, y0, x1, y1 = g.strokes_bbox(strokes)
     return Drawable(

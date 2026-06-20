@@ -1010,3 +1010,22 @@ outline gets a default cartoon fill; render imported closed-no-fill shapes as vi
 paths in the published rung so paint() leaves them as outlines. Phase 1 (vocab in prompt) is a nudge;
 Phase 2 (the rewrite pre-pass) is the real fix — it maps whatever the model says onto real assets.
 Still TODO: quantity/multiplicity (rain=many drops) and positioning/sizing polish (Phases 3-4).
+
+## V. Quantity + scale hierarchy (Phases 3-4, 2026-06-20)
+
+**V1. A concept can mean MANY (`multiplicity.py`).** "rain is not one drop." Inherently-plural
+concepts (rain→field of water drops, stars, forest→trees, crowd→people, snow→flakes) and an explicit
+`count` (Story can emit `{"kind":"show","concept":"star","count":7}`) expand into N copies of a BASE
+glyph, tiled as ONE group the positioner places as a single box. Tiling = normalize base to unit →
+place scaled copies at deterministic (index-derived, no RNG) positions in row/grid/scatter/rainfall.
+Wired at the TOP of `drawing.measure` (recurses to resolve the base, then tiles; if the base is a box
+it returns None so the plural concept falls through to its own recipe). `parse_beats` folds a
+top-level `count` into geometry; the beat schema + prompt expose it.
+
+**V2. Per-concept SIZE is the scale hierarchy (`sizes.py`).** Everything defaulted to 2.0, so a cloud
+and a coin came out identical. `size_for(concept)` tiers concepts (mountain 3.6 > cloud 2.8 > cat 2.0
+> apple 1.4 > ant 0.95); `drawing._size()` uses it as the default target in every icon/published/
+sketch/catalog rung (explicit `size` still wins). Because the cartoon layout applies ONE scene-scale
+across placed things, these ratios survive to the board — so semantic sizing IS the positioning fix:
+the scale hierarchy was the real gap, not the band placement (which is adequate). Phases 1-4 of the
+icon-pipeline overhaul are done; remaining polish (richer band routing, label layout) is optional.
