@@ -90,6 +90,16 @@
         opacity: 0.55;
         cursor: default;
       }
+      .animate-row {
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      #animate {
+        background: #6e40c9;
+        font-size: 15px;
+      }
       .selects {
         display: grid;
         grid-template-columns: repeat(5, minmax(120px, 1fr));
@@ -265,6 +275,10 @@
             </label>
             <button id="save" disabled>Save Feedback</button>
             <div id="saveStatus" class="muted"></div>
+          </div>
+          <div class="animate-row">
+            <button id="animate" disabled>Approve &amp; Animate →</button>
+            <span id="animateStatus" class="muted"></span>
           </div>
         </section>
         <aside>

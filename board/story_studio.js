@@ -75,7 +75,9 @@ function render(data) {
     )
     .join('');
   $('save').disabled = false;
+  $('animate').disabled = false;
   $('saveStatus').textContent = '';
+  $('animateStatus').textContent = '';
 }
 
 function escapeHtml(s) {
@@ -143,6 +145,32 @@ async function saveFeedback() {
   }
 }
 
+// Stage 2: hand the APPROVED story to the cartoon engine. POST the package, stash the
+// returned choreographed timeline, and jump to the board — which plays it on load.
+async function animate() {
+  if (!lastPackage) return;
+  const button = $('animate');
+  button.disabled = true;
+  button.textContent = 'Animating…';
+  $('animateStatus').textContent = 'Bridging the story to the board…';
+  try {
+    const res = await fetch('/api/story-studio/animate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ package: lastPackage, style: 'cartoon' }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const { timeline } = await res.json();
+    sessionStorage.setItem('storyStudioTimeline', JSON.stringify(timeline));
+    sessionStorage.setItem('storyStudioTitle', lastPackage.title || 'story');
+    window.location.href = '/engine';
+  } catch (err) {
+    $('animateStatus').textContent = `Animate failed: ${err}`;
+    button.disabled = false;
+    button.textContent = 'Approve & Animate →';
+  }
+}
+
 async function loadExamples() {
   try {
     const res = await fetch('/api/story-studio/examples');
@@ -172,5 +200,6 @@ function applyExample(id) {
 
 $('generate').addEventListener('click', generate);
 $('save').addEventListener('click', saveFeedback);
+$('animate').addEventListener('click', animate);
 $('exampleSelect').addEventListener('change', (ev) => applyExample(ev.target.value));
 loadExamples();

@@ -687,6 +687,23 @@ async function teach() {
   }
 }
 
+// Stage-2 handoff: the Story Studio "Approve & Animate" stashes a choreographed timeline
+// and jumps here. If one is waiting, play it instead of planning a fresh lesson.
+async function playPendingStoryTimeline() {
+  const raw = sessionStorage.getItem('storyStudioTimeline');
+  if (!raw) return false;
+  sessionStorage.removeItem('storyStudioTimeline');
+  const title = sessionStorage.getItem('storyStudioTitle') || 'story';
+  sessionStorage.removeItem('storyStudioTitle');
+  try {
+    topicInput.value = title;
+    await playTimeline(JSON.parse(raw));
+  } catch (err) {
+    caption.textContent = `Error: ${err}`;
+  }
+  return true;
+}
+
 function wireChips(attr, set) {
   for (const chip of document.querySelectorAll(`[data-${attr}]`)) {
     chip.addEventListener('click', () => {
@@ -717,3 +734,4 @@ topicInput.addEventListener('keydown', (e) => {
 });
 
 loadStatus();
+playPendingStoryTimeline();
