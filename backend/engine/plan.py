@@ -840,6 +840,23 @@ def _verb_from_direction(text: str) -> str | None:
     return None
 
 
+def _drawable_concept(style: str, *candidates: str) -> str | None:
+    """Find the first SHORT drawable noun across the candidate phrases (focus, then direction,
+    then beat) so the hero renders as a cartoon SUBJECT, not a labeled box — a story's focus is
+    often a name ('Mira') or a phrase ('rain forms'); the concrete subject hides in the prose.
+    Forward scan per phrase (the head noun leads); None if nothing in any candidate draws."""
+    for phrase in candidates:
+        for raw in (phrase or "").lower().replace("-", " ").split():
+            w = raw.strip(".,!?;:'\"()")
+            if (
+                len(w) > 2
+                and measure(Thing("p", w, Extent(1, 1)), generate=False, style=style).source
+                != "box"
+            ):
+                return w
+    return None
+
+
 def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
     """An approved Story-Studio StoryPackage (dict) -> an animated LessonPlan, one scene per story
     scene. `focus` -> the scene's hero drawable; `beat`/`goal`/`turn` -> narration lines; the scene's
@@ -851,6 +868,12 @@ def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
         if not isinstance(sc, dict):
             continue
         focus = (sc.get("focus") or "").strip() or title
+        # The hero must be a drawable SUBJECT acting the process, not a labeled box. Prefer the
+        # focus, but mine the direction/beat for a concrete noun when the focus doesn't draw.
+        subject = (
+            _drawable_concept(style, focus, sc.get("direction") or "", sc.get("beat") or "")
+            or focus
+        )
         hero = f"c{i}"
         lines: list[str] = []  # the beat is the narration spine; add a distinct goal/turn for depth
         for raw in (sc.get("beat"), sc.get("goal"), sc.get("turn")):
@@ -869,8 +892,8 @@ def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
         scenes_out.append(
             ScenePlan(
                 id=f"s{i}",
-                setting=focus,
-                entities=(Entity(hero, focus, role="hero"),),
+                setting=subject,
+                entities=(Entity(hero, subject, role="hero"),),
                 shots=tuple(shots),
                 transition="fade",
                 purpose=purpose,

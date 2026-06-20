@@ -69,6 +69,25 @@ def test_bridge_animates_a_film_not_a_diagram():
     assert any(e["type"] == "say" for e in evs) and any(e["type"] == "draw" for e in evs)
 
 
+def test_focus_phrase_resolves_to_a_drawable_subject():
+    # A story's focus is often a name or a phrase ('rain forms'); the hero must still be a
+    # drawable SUBJECT (mined from focus/direction/beat), never a labeled box.
+    pkg = _pkg(
+        [
+            {
+                "focus": "Mira",
+                "beat": "Mira watches the rain fall.",
+                "direction": "rain pours down",
+            },
+            {"focus": "rain forms", "beat": "Water gathers.", "direction": "a cloud appears"},
+        ]
+    )
+    lp = plan.from_story_package(pkg, "cartoon")
+    concepts = [s.entities[0].concept for s in lp.scenes]
+    assert "Mira" not in concepts and "rain forms" not in concepts  # not a name/phrase
+    assert all(len(c.split()) == 1 for c in concepts)  # a single drawable noun each
+
+
 def test_length_drives_video_length():
     short = plan.from_story_package(_pkg([{"focus": "sun", "beat": "a"}]))
     long = plan.from_story_package(
