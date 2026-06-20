@@ -182,6 +182,11 @@ def measure(thing: Thing, generate: bool = True, style: str = "whiteboard") -> D
         _cache[k] = pub
         return pub
 
+    eqn = _math(thing)  # deterministic math-equation rung (matplotlib mathtext) — always on
+    if eqn is not None:
+        _cache[k] = eqn
+        return eqn
+
     if generate and k not in _negative:  # negative cache forks per (concept, geometry, STYLE)
         gen = _try_generate(thing)
         if gen is not None:
@@ -406,6 +411,18 @@ def _resolve_local(thing: Thing) -> Drawable | None:
     if c == "text":
         return _text(str(ga.get("text", "")), float(ga.get("font", 0.5)))
     return None
+
+
+def _math(thing: Thing) -> Drawable | None:
+    """Deterministic math-equation rung: render an expression concept (E=mc^2, a^2+b^2=c^2) to
+    filled glyph strokes via matplotlib mathtext. None for non-expression concepts, so it only
+    ever fires on the math long-tail (after recipes/families/catalog/sketch all miss)."""
+    from engine import mathtext
+
+    strokes = mathtext.render(thing.concept)
+    if not strokes:
+        return None
+    return _from_strokes(list(strokes), rung=3, source="generated")
 
 
 def _from_strokes(
