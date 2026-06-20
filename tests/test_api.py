@@ -135,3 +135,94 @@ def test_engine_animate_pasted_story(client):
 def test_engine_animate_rejects_unparseable(client):
     r = client.post("/api/engine/animate", json={"script": "this is not json"})
     assert r.status_code == 400
+
+
+def test_story_studio_page_served(client):
+    r = client.get("/story-studio")
+    assert r.status_code == 200
+    assert b"Story Studio" in r.content
+
+
+def test_story_studio_generate_is_text_only_and_hermetic(client):
+    r = client.post(
+        "/api/story-studio/generate",
+        json={
+            "prompt": "Tenali Rama solves a funny problem in the royal court",
+            "arc": "folk_tale",
+            "provider": "template",
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert {
+        "title",
+        "logline",
+        "characters",
+        "promise",
+        "character_arc",
+        "scenes",
+        "story",
+        "critique",
+        "scores",
+    } <= body.keys()
+    assert len(body["scenes"]) >= 3
+    assert {"want", "need", "obstacle", "stakes", "revelation"} <= body["character_arc"].keys()
+    assert {"goal", "conflict", "turn", "reaction", "decision"} <= body["scenes"][0].keys()
+    assert len(body["story"].split()) >= 100
+    assert body["provider"]["provider"] == "template"
+    assert body["scores"]["completeness"] >= 3
+    assert body["scores"]["scene_turns"] >= 3
+
+
+def test_story_studio_examples(client):
+    r = client.get("/api/story-studio/examples")
+    assert r.status_code == 200
+    examples = r.json()["examples"]
+    assert any(e["id"] == "water_cycle" for e in examples)
+    assert all({"id", "prompt", "arc"} <= e.keys() for e in examples)
+
+
+def test_story_studio_save_feedback(client, monkeypatch, tmp_path):
+    log = tmp_path / "feedback.jsonl"
+    monkeypatch.setenv("STORY_STUDIO_LOG", str(log))
+    package = {"title": "x", "story": "Once. Then. Finally.", "scores": {"completeness": 3}}
+    r = client.post(
+        "/api/story-studio/save",
+        json={"package": package, "rating": 4, "note": "usable baseline"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["saved"] is True and body["rating"] == 4
+    assert log.exists() and "usable baseline" in log.read_text()
+
+
+def test_story_studio_animate_bridges_to_a_full_length_cartoon(client):
+    """Stage 2: an approved Story-Studio package animates into a multi-scene cartoon TIMELINE —
+    a scene per story scene, motion from `direction`, and NO arrows (it's a film, not a diagram)."""
+    package = {
+        "title": "the water cycle",
+        "scenes": [
+            {
+                "focus": "sun",
+                "beat": "The sun warms the ocean.",
+                "direction": "the sun shines",
+                "purpose": "introduce",
+                "emotion": "curious",
+            },
+            {
+                "focus": "cloud",
+                "beat": "A cloud forms in the sky.",
+                "direction": "vapor condenses into a cloud",
+                "purpose": "resolve",
+                "emotion": "joyful",
+            },
+        ],
+    }
+    r = client.post("/api/story-studio/animate", json={"package": package, "style": "cartoon"})
+    assert r.status_code == 200
+    tl = r.json()["timeline"]
+    assert set(tl) == {"version", "meta", "markers", "entries"}
+    assert sum(1 for e in tl["entries"] if e["kind"] == "clear") >= 1  # multi-scene = full-length
+    assert any(e["kind"] == "say" for e in tl["entries"])  # narration from the story
+    assert any(e["kind"] == "draw" for e in tl["entries"])  # the subjects are drawn
+    assert not any(e["kind"] == "connector" for e in tl["entries"])  # no arrows

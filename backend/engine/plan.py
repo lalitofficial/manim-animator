@@ -803,3 +803,78 @@ def lift_beats(beats: list[Beat], title: str = "lesson", style: str = "cartoon")
     if style == palette.CARTOON and len(scenes) >= 2:
         scenes[-1] = replace(scenes[-1], emotion="joyful")
     return LessonPlan(title=title, scenes=tuple(scenes) or (ScenePlan("s0"),), style=style)
+
+
+# --------------------------------------------------------------------------- #
+# The BRIDGE: an APPROVED Story-Studio StoryPackage -> an animated LessonPlan.
+# This is the two-stage workflow's join: a story is generated + approved (Story Studio),
+# THEN animated here. Consumes the package as a DICT, so story_studio stays decoupled.
+# One animated scene per story scene -> a full-length, multi-scene cartoon.
+# --------------------------------------------------------------------------- #
+# A story scene's `direction` describes the intended motion; map it to a process verb (the
+# animation IS the explanation). First keyword match wins; else the subject just enters + holds.
+_DIRECTION_VERBS = (
+    (
+        ("evaporat", "rise", "rises", "rising", "upward", "up into", "ascend", "lift", "steam"),
+        "rise",
+    ),
+    (("rain", "fall", "falls", "falling", "drop", "downward", "descend", "pour", "sink"), "fall"),
+    (
+        ("flow", "river", "stream", "current", "drift", "carries", "travels", "runs", "journey"),
+        "flow",
+    ),
+    (
+        ("condens", "form", "becomes", "turn into", "gather", "combine", "merge", "grows into"),
+        "transform",
+    ),
+    (("grow", "expand", "swell", "bigger", "bloom"), "grow"),
+    (("shrink", "smaller", "fade", "shrinks", "dissolve"), "shrink"),
+)
+
+
+def _verb_from_direction(text: str) -> str | None:
+    t = (text or "").lower()
+    for keys, verb in _DIRECTION_VERBS:
+        if any(k in t for k in keys):
+            return verb
+    return None
+
+
+def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
+    """An approved Story-Studio StoryPackage (dict) -> an animated LessonPlan, one scene per story
+    scene. `focus` -> the scene's hero drawable; `beat`/`goal`/`turn` -> narration lines; the scene's
+    `direction` -> a process motion verb on the subject; `purpose`/`emotion` -> scene mood. The
+    number of story scenes (driven by Story-Studio `length`) becomes the length of the video."""
+    title = (pkg.get("title") or "lesson").strip() or "lesson"
+    scenes_out: list[ScenePlan] = []
+    for i, sc in enumerate(pkg.get("scenes") or []):
+        if not isinstance(sc, dict):
+            continue
+        focus = (sc.get("focus") or "").strip() or title
+        hero = f"c{i}"
+        lines: list[str] = []  # the beat is the narration spine; add a distinct goal/turn for depth
+        for raw in (sc.get("beat"), sc.get("goal"), sc.get("turn")):
+            line = (raw or "").strip()
+            if line and line not in lines:
+                lines.append(line)
+        if not lines:
+            lines = [focus]
+        verb = _verb_from_direction(f"{sc.get('direction', '')} {sc.get('beat', '')}")
+        shots: list[Shot] = []
+        for j, line in enumerate(lines):
+            acts = (Action(verb, hero, dur="long"),) if (j == 0 and verb) else ()
+            shots.append(Shot(enter=(hero,) if j == 0 else (), say=line, actions=acts, hold="med"))
+        emotion = sc.get("emotion") if sc.get("emotion") in EMOTIONS else "curious"
+        purpose = sc.get("purpose") if sc.get("purpose") in PURPOSES else "explain"
+        scenes_out.append(
+            ScenePlan(
+                id=f"s{i}",
+                setting=focus,
+                entities=(Entity(hero, focus, role="hero"),),
+                shots=tuple(shots),
+                transition="fade",
+                purpose=purpose,
+                emotion=emotion,
+            )
+        )
+    return LessonPlan(title=title, scenes=tuple(scenes_out) or (ScenePlan("s0"),), style=style)

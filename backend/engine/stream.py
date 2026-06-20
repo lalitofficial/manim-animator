@@ -57,3 +57,19 @@ def timeline_lesson(
     events = list(stream_lesson(topic, mode, board, generate, spec, beats))
     tl = choreograph.choreograph(timeline.from_events(events), cinematic=spec.cinematic)
     return timeline.to_dict(tl)
+
+
+def timeline_from_package(
+    pkg: dict, style: str = "cartoon", board: Board | None = None, generate: bool = True
+) -> dict:
+    """Animate an APPROVED Story-Studio package — the two-stage join (story → approve → ANIMATE).
+
+    Bridge the package → a multi-scene LessonPlan (one scene per story scene), compile, then
+    choreograph → a CHOREOGRAPHED Timeline the board scheduler plays as a FULL-LENGTH cartoon.
+    No model call here: the story is already written and approved upstream."""
+    spec = director.direct(pkg.get("title") or "lesson", mode="story", style=style)
+    lp = plan.from_story_package(pkg, style)
+    prov = {"requested": "story-studio", "used": "story-studio", "fallback": False, "reason": None}
+    events = list(plan.compile_plan(lp, spec, board, generate, provenance=prov))
+    tl = choreograph.choreograph(timeline.from_events(events), cinematic=spec.cinematic)
+    return timeline.to_dict(tl)

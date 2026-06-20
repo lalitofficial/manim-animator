@@ -22,6 +22,7 @@ import threading
 import traceback
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, RedirectResponse
@@ -339,6 +340,30 @@ class ScriptRequest(BaseModel):
     density: str | None = None
 
 
+class StoryStudioRequest(BaseModel):
+    """Text-only story lab input. Separate from the visual/cartoon engine."""
+
+    prompt: str
+    arc: str = "explainer"
+    audience: str = "general"
+    tone: str = "warm"
+    length: str = "short"
+    provider: str = "auto"
+
+
+class StoryStudioSaveRequest(BaseModel):
+    package: dict[str, Any]
+    rating: int | None = None
+    note: str = ""
+
+
+class AnimateStoryRequest(BaseModel):
+    """Stage 2 of the cartoon workflow: animate an APPROVED Story-Studio package."""
+
+    package: dict[str, Any]
+    style: str = "cartoon"
+
+
 def _extract_json(text: str):
     """Tolerantly pull a JSON value out of pasted text (strip ``` fences / prose)."""
     t = (text or "").strip()
@@ -392,6 +417,54 @@ def engine_animate(req: ScriptRequest):
             )
         events = list(stream_lesson(req.topic, spec=spec, beats=beats))
     return {"topic": req.topic, "spec": to_dict(spec), "events": events}
+
+
+# --- Story Studio: text-first story-writing feedback loop ------------------- #
+@app.get("/story-studio")
+def story_studio_view():
+    """A separate text-only studio for improving story generation before animation."""
+    return FileResponse(BOARD / "story_studio.html")
+
+
+@app.post("/api/story-studio/generate")
+def story_studio_generate(req: StoryStudioRequest):
+    from engine import story_studio
+
+    package = story_studio.generate(
+        story_studio.StoryStudioRequest(
+            prompt=req.prompt,
+            arc=req.arc,
+            audience=req.audience,
+            tone=req.tone,
+            length=req.length,
+            provider=req.provider,
+        )
+    )
+    return package.to_dict()
+
+
+@app.get("/api/story-studio/examples")
+def story_studio_examples():
+    from engine import story_studio
+
+    return {"examples": story_studio.examples()}
+
+
+@app.post("/api/story-studio/save")
+def story_studio_save(req: StoryStudioSaveRequest):
+    from engine import story_studio
+
+    return story_studio.save_feedback(req.package, req.rating, req.note)
+
+
+@app.post("/api/story-studio/animate")
+def story_studio_animate(req: AnimateStoryRequest):
+    """Stage 2 of the cartoon workflow: animate an APPROVED Story-Studio story. Bridges the
+    StoryPackage -> a multi-scene LessonPlan and compiles a CHOREOGRAPHED Timeline the board
+    scheduler plays as a full-length cartoon. No model call — the story is already written."""
+    from engine.stream import timeline_from_package
+
+    return {"timeline": timeline_from_package(req.package, req.style)}
 
 
 # --- v3 engine testing/checking dashboard ---------------------------------- #
