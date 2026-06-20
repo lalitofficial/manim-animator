@@ -13,6 +13,7 @@ import contextlib
 import copy
 import json
 import os
+import subprocess
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, replace
@@ -140,12 +141,49 @@ _PROMPT = (
     'id/concept word, e.g. {{"kind":"say","text":"The [sun] warms the [ground]."}} after showing sun '
     "and ground. Bracket ONLY words that match a `show`; the word is still spoken normally.\n"
     "MODE: {mode_hint}\n"
+    "{domain_line}"
     "STYLE: {style}. If STYLE is cartoon and MODE is not explain, plan a fuller mini-cartoon: "
     "5-7 short narration beats, concrete scene props, and visible action moments. Do not stop "
     "after only two or three lines unless MODE is explain.\n"
     "AUDIENCE: {audience} · TONE: {tone} · DEPTH: {depth} — match vocabulary and length to these.\n"
     "Output ONLY the JSON object."
 )
+
+
+def _domain_prompt_line(domain: str) -> str:
+    """Phase 1: tell the model which domain-specific items it can actually DRAW, so it
+    names 'virtual machine'/'storage' (real icons) instead of inventing un-drawable nouns."""
+    if not domain:
+        return ""
+    from engine import semantics
+
+    vocab = semantics.vocabulary(domain, 40)
+    if not vocab:
+        return f"DOMAIN: {domain}.\n"
+    items = ", ".join(vocab)
+    return (
+        f"DOMAIN: {domain}. PREFER these exact drawable item names where they fit "
+        f"(they render as real icons, not plain boxes): {items}.\n"
+    )
+
+
+def _resolve_domain_concepts(beats: list[Beat], spec: DirectorSpec) -> list[Beat]:
+    """Phase 2: rewrite each show concept to the best concrete asset for the lesson's
+    domain (server→a published server icon; cloud→cloud-service in a cloud lesson; tree/sun
+    stay cartoon). No-op when no domain was inferred, so general lessons are untouched."""
+    domain = getattr(spec, "domain", "")
+    if not domain:
+        return beats
+    from engine import semantics
+
+    out: list[Beat] = []
+    for b in beats:
+        if b.kind == "show" and b.concept:
+            new = semantics.resolve_concept(b.concept, domain)
+            if new != b.concept:
+                b = replace(b, concept=new)
+        out.append(b)
+    return out
 
 
 class StoryProvider(Protocol):
@@ -183,8 +221,8 @@ def plan(topic: str, spec=None) -> StoryResult:
     requested = getattr(_provider, "name", "template")
 
     def dress(raw: list[Beat]) -> list[Beat]:
-        # drop-don't-repair the plan, then add the cartoon host (style-gated).
-        return _with_presenter(sanitize_beats(raw, s), s)
+        # drop-don't-repair, resolve concepts to domain assets, then add the cartoon host.
+        return _with_presenter(_resolve_domain_concepts(sanitize_beats(raw, s), s), s)
 
     if isinstance(_provider, TemplateStory):
         return StoryResult(dress(_provider.tell(s)), "template", "template")
@@ -893,6 +931,7 @@ class _LLMStory:
             depth=spec.depth,
             concept_count=spec.concept_count,
             style=spec.style,
+            domain_line=_domain_prompt_line(spec.domain),
         )
         # The per-lesson schema's minItems FORCES a full lesson (no 1-2-line truncation).
         raw = self._complete(prompt, _beat_schema(spec))  # may raise -> plan() reports it
@@ -952,6 +991,95 @@ class GeminiStory(_LLMStory):
         return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
+class VertexStory(_LLMStory):
+    name = "vertex"
+
+    def __init__(self) -> None:
+        self.model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        self.project = _vertex_project()
+        self.location = _vertex_location()
+
+    def _complete(self, prompt: str, schema: dict | None = None) -> str | None:  # pragma: no cover
+        if not self.project:
+            return None
+        url = _vertex_generate_url(self.project, self.location, self.model)
+        body = json.dumps(
+            {
+                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                "generationConfig": {"responseMimeType": "application/json"},
+            }
+        ).encode()
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {_google_access_token()}",
+            },
+        )
+        data = _http_json(req)
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+
+
+def _vertex_project() -> str:
+    return (
+        os.environ.get("VERTEX_PROJECT")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        or os.environ.get("GCLOUD_PROJECT")
+        or ""
+    ).strip()
+
+
+def _vertex_location() -> str:
+    return (
+        os.environ.get("VERTEX_LOCATION")
+        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        or "us-central1"
+    ).strip()
+
+
+def _vertex_generate_url(project: str, location: str, model: str) -> str:
+    host = (
+        "aiplatform.googleapis.com"
+        if location == "global"
+        else f"{location}-aiplatform.googleapis.com"
+    )
+    return (
+        f"https://{host}/v1/projects/{project}/locations/{location}/publishers/google/"
+        f"models/{model}:generateContent"
+    )
+
+
+def _google_access_token() -> str:
+    token = os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN", "").strip()
+    if token:
+        return token
+    with contextlib.suppress(Exception):
+        import google.auth
+        from google.auth.transport.requests import Request
+
+        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        creds.refresh(Request())
+        if creds.token:
+            return creds.token
+    commands = (
+        ["gcloud", "auth", "application-default", "print-access-token"],
+        ["gcloud", "auth", "print-access-token"],
+    )
+    for cmd in commands:
+        with contextlib.suppress(Exception):
+            out = subprocess.check_output(cmd, text=True, timeout=10).strip()
+            if out:
+                return out
+    try:
+        raise RuntimeError("gcloud token command returned no token")
+    except Exception as e:  # noqa: BLE001 - surface a setup hint through StoryResult.reason
+        raise RuntimeError(
+            "could not get Google Cloud access token; run `gcloud auth application-default login` "
+            "or set GOOGLE_APPLICATION_CREDENTIALS/GOOGLE_OAUTH_ACCESS_TOKEN"
+        ) from e
+
+
 def _http_json(req: urllib.request.Request, timeout: int = 120) -> dict:
     """POST and parse JSON; on an HTTP error, raise with the SERVER's message
     (e.g. Google's 'API key not valid' / 'PERMISSION_DENIED'), not a bare code."""
@@ -987,4 +1115,6 @@ def _default_provider() -> StoryProvider:
         return OllamaStory(model=r.model)
     if r.provider == "gemini":
         return GeminiStory()
+    if r.provider == "vertex":
+        return VertexStory()
     return TemplateStory()

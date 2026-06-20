@@ -497,6 +497,7 @@ def test_prompt_format_has_no_brace_bug():
         depth="normal",
         concept_count=4,
         style="cartoon",
+        domain_line="",
     )
     assert "photosynthesis" in out and "[sun]" in out  # formats cleanly; marker rule present
 

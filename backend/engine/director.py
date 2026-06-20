@@ -42,6 +42,8 @@ class DirectorSpec:
     length: str = "2min"  # target duration (1min/2min/5min/10min) → scene count
     scene_count: int = 0  # 0 = derive from `length`; an explicit >0 overrides it
     style: str = "whiteboard"  # whiteboard (mono) | cartoon (filled, colored)
+    domain: str = ""  # inferred subject domain (cloud-computing/weather/…) — drives
+    #                   semantic concept resolution + which imported icon sets apply
 
     # ---- derived, deterministic engine knobs ----
     @property
@@ -174,6 +176,12 @@ def direct(
     valid = {k: v for k, v in overrides.items() if v is not None and hasattr(spec, k)}
     if valid:
         spec = replace(spec, **valid)
+    # Domain is a SEPARATE axis from mode — inferring it from the topic is safe and is
+    # exactly what context-aware concept resolution needs (cloud-computing vs weather).
+    if not spec.domain:
+        from engine import semantics
+
+        spec = replace(spec, domain=semantics.infer_domain(topic))
     return spec
 
 

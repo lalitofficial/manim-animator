@@ -865,3 +865,148 @@ nowhere. Always verify a load-bearing repo quote against the actual file. **(b) 
 subsystems** — `compile_plan` shot-framing (this change) AND `choreograph._follow_cameras` (concept-follow on
 the timeline path); both feed the live board and will FIGHT until unified. Next step (#1b): make the
 shot-grammar the camera authority and demote concept-follow to "a medium on the spoken concept."
+
+## P. Asset Studio — assets as first-class, bundled, gated resources (2026-06-20)
+
+**P1. The asset corpus needed a SPINE, not more drawings.** Coverage was scaling through
+scattered hand-edits + ad-hoc icon imports. The fix mirrors the IR-is-the-spine principle:
+a single **manifest** (`asset_registry.py`) ENUMERATES every existing source (hand-core
+recipes, `cartoon_recipes.json`, the parametric `families` corpus, mono `icon_recipes.json`,
+the Tabler catalog, Studio overrides, candidates) into one deduped `AssetEntry` list whose
+*winner per concept follows the live `icons.compose` precedence* (override>core>cartoon>
+family>mono>catalog). It only READS the sources — it never forks the corpus. ~566 assets
+surface uniformly so the Studio/coverage/bundles can reason about them as data.
+
+**P2. Bundles are a non-breaking filter, default-on.** `bundles.py` declares groups by
+FAMILY and/or explicit CONCEPTS in `bundles.json`; a concept's bundle = highest-priority
+claimant, else `core` (always on, so adding bundles never strands a concept). The runtime
+gate in `drawing.measure` is guarded by `bundles.any_disabled()` — when every bundle is
+enabled (the default + every test) the lookup is skipped entirely and resolution is
+byte-identical. Disabling a bundle drops its concepts to the labeled-box backstop. Enabled
+state persists to a gitignored `data/bundle_state.json`; the committed registry stays clean.
+
+**P3. Coverage is an OUTPUT-derived ruler (the §A3 anti-self-certification rule again).**
+`coverage.analyze()` doesn't trust the catalog size — it RESOLVES a probe set through
+`measure(generate=False)` (hermetic, no provider) and reports what each concept *actually
+became* (composed / catalog / sketch / box). Fallback rate = boxed/total computed from the
+painted source tag, not a registry count. A request log ranks "frequently-requested missing
+nouns" — the work queue for new assets.
+
+**P4. Publishing is gated; external art is a candidate, never auto-trusted.** A Studio
+family-variant must pass license + renderability + complexity + style(filled) + bbox +
+contrast AND carry explicit human approval before it lands in `asset_overrides.json` (which
+`families._load_overrides` then resolves live). Excalidraw libraries (`excalidraw_libraries.py`)
+are indexed/previewed as MIT *candidates* — a source bundle, not runtime assets — exactly the
+"reference vs trusted" split the brief demanded.
+
+**P5. Gotcha — a pre-existing WIP `bicycle` shadows its own family.** `test_families.py`'s
+"every family concept must compose to FILLED strokes" started failing the moment uncommitted
+WIP added `bicycle` to the vehicle family table, because `bicycle` ALSO exists in
+`cartoon_recipes.json` as an unfilled recipe that outranks families. The same concept in two
+rungs, one filled one not, and the higher rung wins. Lesson: the manifest's `also_in` field
+exists precisely to make these multi-rung shadows visible — a concept living in both a recipe
+and a family is a smell to reconcile, not duplicate.
+
+## Q. The app shell — dockview panels in the Svelte Studio (2026-06-20)
+
+**Q1. The product UI consolidates into the Svelte Studio (`frontend/`), not more vanilla pages.**
+The Asset Studio shipped twice: first a fast vanilla `board/asset_studio.{html,js}` (proves the
+backend), then the REAL home — a `dockview-core` layout inside the Vite+Svelte product Studio
+(`AssetStudio.svelte` + `asset/*Panel.svelte`). Lesson banked: vanilla pages are fine to PROVE a
+backend, but the durable surface is the one product shell. The new `Root.svelte` adds a left nav rail
+(Board ↔ Assets, hash-routed) so every future surface is a rail entry, not a new HTML file.
+
+**Q2. dockview-core is framework-agnostic; the Svelte bridge is ~20 lines.** A panel is an
+`IContentRenderer` (`{element, init(params), dispose()}`); `lib/dockSvelte.js` wraps a Svelte
+component so each panel mounts `new Component({target: element})` and `$destroy()`s on dispose.
+`createDockview(el, {theme: themeGithubDark, createComponent})` + `api.addPanel({position:{referencePanel,
+direction}})`. Gotcha: `direction:'within'` (tab into a group) is only legal with `referencePanel`
+(RelativePanel), NOT with a bare absolute position. Panels coordinate through tiny Svelte stores
+(`assetStore.js`: `selected`, `stats`, `dataVersion`+`bumpData`) — a bundle toggle bumps `dataVersion`,
+the Catalog/Coverage panels reload. Six panels: Catalog · Preview · Bundles · Coverage · Create-Variant ·
+Excalidraw-Candidates, all draggable/splittable/tabbable. Builds clean (`make ui-build`), served at
+`/studio/#/assets`.
+
+## R. Bulk-syncing 4,070 Excalidraw icons as normalized candidates (2026-06-20)
+
+**R1. Parse the COORDINATES, not the preview PNG.** Every `.excalidrawlib` carries element
+geometry (x/y/w/h/points). The sync (`excalidraw_libraries.sync_all`) fetches each of the 230
+libraries ONCE from `libraries.json`, then parses every item's elements → approximate SVG →
+`svgnorm.sanitize_to_drawable` (flatten curves, normalize to a board box, quality-gate) → board-unit
+strokes. Result: 230 libraries → 4,096 items → **3,799 renderable** as real vectors. Handle BOTH
+formats: v2 items are `{name, elements:[…]}`; v1 items are a bare LIST of elements (no name) — a
+single `_item_name_elements` normalizes them.
+
+**R2. Uniqueness is the whole game for a flat import.** First cut deduped 53 items → 12 because v1
+items are all named "Item N" and named items collide across sets ("Storage" in five Azure packs).
+Fix: concept id = `slug(library-name)`, keeping the original as a display `title`. So search "azure"
+hits 133 icons, search "storage" hits the right ones, and nothing is lost to collision. Lesson: when
+flattening many namespaced sources into one keyspace, prefix the key with the namespace and carry the
+pretty name separately.
+
+**R3. The `imported` bundle is the pollution firewall — and it deliberately breaks the
+"all-enabled" invariant.** 4,070 technical diagram icons must NOT leak into cartoon lessons, so they
+live in a single `imported` bundle shipped **disabled**. That means `bundles.any_disabled()` is now
+always True (the old "non-breaking = nothing disabled" test had to become "imported is off but normal
+concepts still resolve"). Candidates also never enter `drawing.measure`'s ladder, so real lessons are
+byte-identical regardless. Storage is ONE pack file per library (`candidates/<key>.json`, gitignored),
+not one-per-icon — 230 files, not 4,070. `candidates_store` owns load/index/strokes→svg and is the
+seam every consumer reads. Catalog preview renders candidate strokes directly (not the engine ladder),
+so synced icons show immediately; promoting one to trusted runtime is still the gated publish step.
+
+## S. Publishing imported candidates — a LOW resolution rung (2026-06-20)
+
+**S1. "Publish" = make an imported candidate engine-drawable, as the LOWEST real rung.**
+`drawing.measure` gained a `_published` rung AFTER icon/catalog/sketch and before generate/box:
+a published candidate's stored strokes resolve as `source="published"`. Because it sits low, a
+cartoon concept (cat) ALWAYS wins; published icons only fill genuine gaps. And because candidate
+ids are library-prefixed (`kubernetes-icons-set-cronjob`), plain lesson nouns never accidentally hit
+a technical diagram icon — so publishing all 3,773 renderable icons is safe: drawable on demand,
+dormant otherwise. The `imported` bundle gate exempts published concepts (publishing is the explicit
+"trust it enough to draw" act). Published state is a flat key set in `candidates/_published.json`
+(gitignored). Manifest: published candidates flip to `status/source=published`, `bundle_enabled=true`.
+One-click in the Preview panel (per icon) + "Publish all imported" in the header. Promote, don't
+inline — keeping it a separate rung means the cartoon corpus stays the source of truth and imports
+are a reversible overlay.
+
+## T. Preserving imported-icon COLOR — bypass svgnorm for candidates (2026-06-20)
+
+**T1. svgnorm is a color-STRIPPER by design; wrong tool for faithful imports.** Imported Excalidraw
+icons came out monochrome because the pipeline routed elements → preview SVG → `svgnorm.
+sanitize_to_drawable`, and svgnorm flattens to colorless polylines (the cartoon engine applies color
+at PAINT time, so geometry is intentionally color-free). For external art we want the ORIGINAL look.
+Fix: `excalidraw_libraries._elements_to_strokes` parses elements straight into COLORED board strokes —
+each element's `strokeColor` → `Stroke.color`, `backgroundColor` → `Stroke.fill` (None when
+"transparent"); rect/diamond/ellipse become real closed outlines (ellipse sampled to a polygon),
+lines/freedraw stay open; Y is flipped to board-up and the whole thing normalized to a centered box.
+`candidates_store.strokes_svg` then renders per-stroke fill+color on a dark backing (matching the
+Excalidraw panel preview where they "really look" right) instead of recoloring to the cartoon board.
+Result: 4,062 renderable (up from 3,799 via svgnorm), colors intact (Application Insights keeps its
+purple gem + gray boxes + white lines). Lesson: the cartoon color-at-paint-time invariant is right
+for the cartoon corpus and exactly wrong for faithful third-party art — keep the two paths separate.
+
+## U. Context-aware semantic concept resolution (2026-06-20)
+
+**U1. Three gaps made imported icons useless in lessons; one model fixes them.** A "azure cloud"
+lesson drew `server`/`data`/`internet` as BOXES and `cloud` as a sky cloud, despite 4,036 published
+icons. Root causes: (a) the live LLM prompt never saw our drawable vocabulary, so it invented
+un-drawable nouns; (b) published icons are keyed by library-prefixed ids, so plain nouns never matched
+(the anti-pollution firewall); (c) resolution has zero domain awareness, so "cloud" always hit the
+hand-built sky recipe. Fix = `semantics.py`: infer a DOMAIN from the topic (deterministic keyword
+cues), index published icons by clean title tagged with their set's domain, and a **pre-pass that
+rewrites the concept STRING before drawing** — `server`→a published server icon, `cloud`→cloud-service
+(FORCED over the cartoon recipe in a cloud lesson), while `tree`/`sun` stay cartoon. Rewriting the
+string (not threading context through measure) means the cache key already encodes the resolution —
+no measure/cache changes. The firewall becomes CONTEXT-GATED aliasing: weather lessons keep the sky
+cloud (weather domain has empty `force`); only a tech domain remaps tech nouns.
+
+**U2. Gotchas banked.** (a) Bare "cloud" must NOT be a cloud-computing cue — "types of clouds" is
+weather; tech needs azure/aws/kubernetes/"cloud computing". Weather wins cloud/rain. (b) A downstream
+cache keyed on `(len, len)` collides across inputs with equal counts (tests with 1 seeded candidate
+each returned a STALE index) — give the source a monotonic `version()` counter bumped on every
+mutation and key caches on that. (c) `palette.apply` already honors authored stroke color
+(`s.color if s.color else default`), so published colors survive paint() — but a CLOSED, unfilled
+outline gets a default cartoon fill; render imported closed-no-fill shapes as visually-closed OPEN
+paths in the published rung so paint() leaves them as outlines. Phase 1 (vocab in prompt) is a nudge;
+Phase 2 (the rewrite pre-pass) is the real fix — it maps whatever the model says onto real assets.
+Still TODO: quantity/multiplicity (rain=many drops) and positioning/sizing polish (Phases 3-4).
