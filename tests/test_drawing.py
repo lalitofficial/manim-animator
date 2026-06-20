@@ -55,6 +55,13 @@ def test_backstop_label_is_kinetic():
     assert circ.source != "box" and circ.text_anim == ""
 
 
+def test_stem_diagram_recipes_compose():
+    # math/physics line diagrams (recipe rung, incl. aliases) compose, not the box backstop
+    for concept in ("axes", "number line", "sine wave", "coordinate plane", "waveform"):
+        d = drawing.measure(Thing("x", concept, _e()))
+        assert d.source == "icon" and d.rung != 6 and d.strokes, concept
+
+
 def test_quickdraw_sketch_resolves_to_rung2():
     """Rung 2: a cached QuickDraw concept becomes a real stroke drawing (not a box).
     Uses a non-icon concept + disables icons to isolate the catalog rung."""

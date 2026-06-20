@@ -378,6 +378,86 @@ ICON_RECIPES["star"] = {
     ]
 }
 
+# STEM diagram recipes (math / physics): clean LINE icons — axes, number line, sine wave.
+# These belong in the recipe rung, not FAMILIES, because a family is contractually a FILLED
+# colored cartoon (see tests/test_families.py) whereas these are intentional line art — the
+# same category as sun's rays (docs/PLAN-director-domains-and-liveliness.md, P3).
+_AX = "#34465a"
+ICON_RECIPES["axes"] = {
+    "parts": [
+        {"prim": "line", "at": [-0.62, 0.0], "to": [1.24, 0.0], "stroke": _AX},  # x-axis
+        {"prim": "line", "at": [0.0, -0.62], "to": [0.0, 1.24], "stroke": _AX},  # y-axis
+        # filled arrowheads (triangle apex points +y; rot -90 -> +x)
+        {
+            "prim": "triangle",
+            "at": [0.62, 0.0],
+            "w": 0.13,
+            "h": 0.13,
+            "rot": -90,
+            "fill": _AX,
+            "stroke": _AX,
+        },
+        {
+            "prim": "triangle",
+            "at": [0.0, 0.62],
+            "w": 0.13,
+            "h": 0.13,
+            "rot": 0,
+            "fill": _AX,
+            "stroke": _AX,
+        },
+        {"prim": "line", "at": [-0.4, -0.05], "to": [0.0, 0.1], "stroke": _AX},  # x ticks
+        {"prim": "line", "at": [-0.2, -0.05], "to": [0.0, 0.1], "stroke": _AX},
+        {"prim": "line", "at": [0.2, -0.05], "to": [0.0, 0.1], "stroke": _AX},
+        {"prim": "line", "at": [0.4, -0.05], "to": [0.0, 0.1], "stroke": _AX},
+        {"prim": "line", "at": [-0.05, -0.4], "to": [0.1, 0.0], "stroke": _AX},  # y ticks
+        {"prim": "line", "at": [-0.05, -0.2], "to": [0.1, 0.0], "stroke": _AX},
+        {"prim": "line", "at": [-0.05, 0.2], "to": [0.1, 0.0], "stroke": _AX},
+        {"prim": "line", "at": [-0.05, 0.4], "to": [0.1, 0.0], "stroke": _AX},
+    ]
+}
+ICON_RECIPES["number line"] = {
+    "parts": [
+        {"prim": "line", "at": [-0.7, 0.0], "to": [1.4, 0.0], "stroke": _AX},
+        {
+            "prim": "triangle",
+            "at": [0.7, 0.0],
+            "w": 0.12,
+            "h": 0.12,
+            "rot": -90,
+            "fill": _AX,
+            "stroke": _AX,
+        },
+        {
+            "prim": "triangle",
+            "at": [-0.7, 0.0],
+            "w": 0.12,
+            "h": 0.12,
+            "rot": 90,
+            "fill": _AX,
+            "stroke": _AX,
+        },
+        {"prim": "line", "at": [-0.45, -0.08], "to": [0.0, 0.16], "stroke": _AX},
+        {"prim": "line", "at": [-0.225, -0.08], "to": [0.0, 0.16], "stroke": _AX},
+        {"prim": "line", "at": [0.0, -0.08], "to": [0.0, 0.16], "stroke": _AX},
+        {"prim": "line", "at": [0.225, -0.08], "to": [0.0, 0.16], "stroke": _AX},
+        {"prim": "line", "at": [0.45, -0.08], "to": [0.0, 0.16], "stroke": _AX},
+    ]
+}
+ICON_RECIPES["sine wave"] = {
+    "parts": [
+        {"prim": "line", "at": [-0.7, 0.0], "to": [1.4, 0.0], "stroke": "#9fb2c4"},  # baseline
+        {
+            "prim": "wave",
+            "at": [0.0, 0.0],
+            "w": 1.3,
+            "amp": 0.34,
+            "cycles": 2.0,
+            "stroke": "#3f7ad6",
+        },
+    ]
+}
+
 ALIASES = {
     "sunshine": "sun",
     "sunlight": "sun",
@@ -408,6 +488,19 @@ ALIASES = {
     "branch": "stem",
     "flower blossom": "flower",
     "plant": "tree",
+    # STEM diagram synonyms
+    "coordinate plane": "axes",
+    "coordinate axes": "axes",
+    "cartesian plane": "axes",
+    "coordinate system": "axes",
+    "graph axes": "axes",
+    "numberline": "number line",
+    "integer line": "number line",
+    "real line": "number line",
+    "waveform": "sine wave",
+    "sinusoid": "sine wave",
+    "sound wave": "sine wave",
+    "oscillation": "sine wave",
 }
 
 

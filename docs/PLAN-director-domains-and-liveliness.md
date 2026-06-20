@@ -330,7 +330,7 @@ so it can be swapped).
 | **P0** ✅ *built* | Two-axis classifier (`domain`+`fmt`+`confidence`), deterministic floor, `/api/engine/classify`, tests | `director.py`, `semantics.py`, `app.py` | The brain everything routes through |
 | **P1** ✅ *importer built* | **Bioicons** importer → candidates → publish; `biology`/`chemistry` domains | `engine/bioicons.py`, `scripts/sync_bioicons.py`, `semantics.py` | Biggest coverage/effort; data-only, existing seams |
 | **P2** ✅ *backstop built* | **Kinetic-text** backstop (emphasis primitive deferred) | `contracts.py`, `drawing.py`, `serialize.py`, `engine.js` | Directly fixes "weak-asset" beats; small, high impact |
-| **P3** | **Math** (LaTeX→SVG live; Manim templates offline) + **schemdraw** circuits | `generators.py`, `renderer.py` | Largest lift; needs the classifier first |
+| **P3** ◑ *diagrams done; rendering deferred* | **STEM diagram recipes** (axes/number-line/sine — no dep) ✅; LaTeX→SVG + Manim + schemdraw need a dep/architecture decision | `icons.py` (done); `generators.py`/`renderer.py` (pending) | Largest lift; needs the classifier first |
 | **P4** ✅ *sound built* | **SFX** (procedural Web Audio) + **motion/camera** polish (motion deferred) | `engine.js` | Polish once breadth exists |
 | **P5** | LLM-refined classification; multi-label domains; per-domain story framing | `director.py`, `story.py` | Quality ceiling, optional |
 
@@ -338,6 +338,22 @@ so it can be swapped).
 mechanism, a big bio asset win, and a graceful answer for everything we *can't* draw — the
 three things that most change the product feel, all on existing seams.
 
+> **P3 build log (2026-06-20).** Shipped the **no-dependency slice** of math/physics:
+> **STEM diagram recipes** in [`icons.py`](../backend/engine/icons.py) — `axes` (coordinate plane
+> with arrowheads + ticks), `number line` (double-headed, ticked), `sine wave` (over a faint
+> baseline) — plus aliases (coordinate plane/cartesian plane → axes; waveform/sinusoid/sound wave →
+> sine wave). They resolve via composition (`source="icon"`) and render on both the live board and
+> the offline SVG. Visually verified (rasterized each — arrowheads point correctly, ticks even, sine
+> clean). **Design correction:** first built as *families*, but `test_families.py` enforces that
+> families are FILLED cartoons (line art fails) — so these moved to the **recipe** rung (the home for
+> line icons like sun's rays), which is the correct call. 469 tests green.
+> - **Deferred — heavy rendering needs a decision.** (1) **LaTeX→SVG equations** (live board) want
+>   **matplotlib** (mathtext→SVG) or a JS renderer — a new dependency / install-footprint choice.
+>   (2) **Manim math** (already a dep) lives in the *offline v1 lane* (`renderer.py`); wiring it into
+>   the v3 board/stream lane is real cross-lane architecture. (3) **schemdraw** circuits add another
+>   dep (it pulls matplotlib). I did not add these unilaterally — they're a product call:
+>   *how much install weight for how much math fidelity, and which lane.*
+>
 > **P4 build log (2026-06-20).** Shipped the **sound layer** in
 > [`board/engine.js`](../board/engine.js): a self-contained procedural **Web Audio** `sfx` module
 > (no asset files, no licensing, nothing to source/bundle — strictly cleaner than a CC0 pack and
