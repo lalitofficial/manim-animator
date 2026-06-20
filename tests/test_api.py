@@ -143,6 +143,16 @@ def test_story_studio_page_served(client):
     assert b"Story Studio" in r.content
 
 
+def test_asset_studio_page_and_catalog(client):
+    r = client.get("/asset-studio")
+    assert r.status_code == 200
+    assert b"Asset Studio" in r.content
+    cat = client.get("/api/asset-studio/catalog", params={"limit": 5})
+    assert cat.status_code == 200
+    body = cat.json()
+    assert {"items", "stats", "total"} <= body.keys()
+
+
 def test_story_studio_generate_is_text_only_and_hermetic(client):
     r = client.post(
         "/api/story-studio/generate",

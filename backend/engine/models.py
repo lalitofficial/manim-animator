@@ -11,10 +11,11 @@ Defaults are LOCAL-FIRST and never paid:
   - ENGINE_SVG_PROVIDER  default `off`  -> unknown concepts resolve to an instant
                          labeled box (no slow/unreliable LLM-SVG). Opt-in only.
 
-A paid CLOUD provider (gemini) runs ONLY when explicitly named AND its key is set —
-never a silent default. If it's named but unkeyed/unreachable we fall back and SAY so
-(no silent paid calls, no crash). `describe()` is the one place the product reads to
-show exactly which provider + model is resolved per job.
+A paid CLOUD provider (`gemini` = AI Studio API key, `vertex` = Google Cloud Vertex AI
+credits/ADC) runs ONLY when explicitly named AND configured — never a silent default.
+If it's named but unconfigured/unreachable we fall back and SAY so (no silent paid calls,
+no crash). `describe()` is the one place the product reads to show exactly which
+provider + model is resolved per job.
 
 Brain-model preference (best-first): Qwen leads because the brain emits schema-
 constrained JSON and Qwen is the most reliable at structured output for its size; the
@@ -27,6 +28,16 @@ import json
 import os
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional in minimal envs
+    load_dotenv = None
+
+if load_dotenv is not None:
+    # Load repo-local .env for normal dev runs, but never override explicit shell env.
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 # Best-first preference for the brain (structured Beat JSON). Matched by family
 # (prefix before ':'), so `qwen3:4b`, `qwen3:8b`, … all count as `qwen3`.
@@ -121,10 +132,58 @@ def _resolve_ollama(job: str, requested: str, model_env: str, auto: bool) -> Res
 def _resolve_gemini(job: str, requested: str) -> Resolved:
     if os.environ.get("GEMINI_API_KEY"):
         model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-        return Resolved(job, requested, "gemini", model, False, f"cloud Gemini · {model} (opt-in)")
+        return Resolved(
+            job,
+            requested,
+            "gemini",
+            model,
+            False,
+            f"AI Studio Gemini · {model} (API-key opt-in)",
+        )
     fallback = "template" if job == "story" else "off"
     return Resolved(
         job, requested, fallback, None, False, "gemini selected but GEMINI_API_KEY is not set"
+    )
+
+
+def _vertex_project() -> str:
+    return (
+        os.environ.get("VERTEX_PROJECT")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        or os.environ.get("GCLOUD_PROJECT")
+        or ""
+    ).strip()
+
+
+def _vertex_location() -> str:
+    return (
+        os.environ.get("VERTEX_LOCATION")
+        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        or "us-central1"
+    ).strip()
+
+
+def _resolve_vertex(job: str, requested: str) -> Resolved:
+    project = _vertex_project()
+    fallback = "template" if job == "story" else "off"
+    if not project:
+        return Resolved(
+            job,
+            requested,
+            fallback,
+            None,
+            False,
+            "vertex selected but VERTEX_PROJECT/GOOGLE_CLOUD_PROJECT is not set",
+        )
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    location = _vertex_location()
+    return Resolved(
+        job,
+        requested,
+        "vertex",
+        model,
+        False,
+        f"Vertex AI Gemini · {model} in {project}/{location} (Google Cloud credits)",
     )
 
 
@@ -136,6 +195,8 @@ def resolve_story() -> Resolved:
         )
     if requested == "gemini":
         return _resolve_gemini("story", requested)
+    if requested == "vertex":
+        return _resolve_vertex("story", requested)
     # auto (default) or explicit ollama -> local first.
     return _resolve_ollama("story", requested, "OLLAMA_STORY_MODEL", auto=requested == "auto")
 
@@ -157,6 +218,8 @@ def resolve_svg() -> Resolved:
         )
     if requested == "gemini":
         return _resolve_gemini("svg", requested)
+    if requested == "vertex":
+        return _resolve_vertex("svg", requested)
     return _resolve_ollama("svg", requested, "OLLAMA_SVG_MODEL", auto=False)
 
 
@@ -250,5 +313,7 @@ def describe() -> dict:
         "ollama_reachable": tags is not None,
         "ollama_models": tags or [],
         "gemini_key_set": bool(os.environ.get("GEMINI_API_KEY")),
+        "vertex_project": _vertex_project(),
+        "vertex_location": _vertex_location(),
         "warnings": warnings,
     }

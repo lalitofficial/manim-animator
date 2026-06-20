@@ -59,6 +59,18 @@ def test_story_gemini_needs_key(monkeypatch):
     assert g.provider == "gemini" and g.model == "gemini-2.5-flash"
 
 
+def test_story_vertex_needs_project(monkeypatch):
+    monkeypatch.setenv("STORY_PROVIDER", "vertex")
+    monkeypatch.delenv("VERTEX_PROJECT", raising=False)
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
+    assert models.resolve_story().provider == "template"
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "demo-project")
+    v = models.resolve_story()
+    assert v.provider == "vertex" and v.model == "gemini-2.5-flash"
+    assert "demo-project" in v.note and "us-central1" in v.note
+
+
 def test_never_defaults_to_paid(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "k")  # key present but NOT selected
     monkeypatch.setenv("STORY_PROVIDER", "auto")
@@ -78,6 +90,12 @@ def test_svg_opt_in_ollama(monkeypatch):
     assert models.resolve_svg().provider == "ollama"
     _ollama(monkeypatch, None)
     assert models.resolve_svg().provider == "off"  # down -> off (not a crash)
+
+
+def test_svg_opt_in_vertex(monkeypatch):
+    monkeypatch.setenv("ENGINE_SVG_PROVIDER", "vertex")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "demo-project")
+    assert models.resolve_svg().provider == "vertex"
 
 
 # --- describe (status surface) ---------------------------------------------- #

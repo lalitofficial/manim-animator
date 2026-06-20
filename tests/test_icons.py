@@ -82,3 +82,28 @@ def test_visual_language_reduces_generation():
     assert drawn == len(concepts), sources  # all drew without catalog or generation
     drawing.set_sketch_lookup(None)
     drawing.reset()
+
+
+def test_cartoon_family_library_is_style_consistent_and_expanded():
+    """The cartoon foreground library should scale through our own family generators,
+    not by importing a mixed external icon style."""
+    from engine import families
+
+    assert len(families.known()) >= 430
+    for concept in (
+        "lynx",
+        "pigeon",
+        "koi",
+        "mosquito",
+        "banana",
+        "bread",
+        "sprout",
+        "school bus",
+        "museum",
+        "exoplanet",
+        "enzyme",
+    ):
+        strokes = icons.compose(concept)
+        assert strokes is not None, concept
+        assert len(strokes) >= 1
+        assert all(len(s.points) >= 2 for s in strokes)

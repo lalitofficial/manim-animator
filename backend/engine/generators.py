@@ -8,9 +8,11 @@ frontier/local providers sit behind ENGINE_SVG_PROVIDER and are never hit in tes
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
+import subprocess
 import urllib.request
 from pathlib import Path
 from typing import Protocol
@@ -105,6 +107,92 @@ class GeminiProvider:
             return None
 
 
+class VertexProvider:
+    """Paid cloud tier through Google Cloud Vertex AI credits (opt-in)."""
+
+    def __init__(self, model: str | None = None) -> None:
+        self.model = model or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        self.project = _vertex_project()
+        self.location = _vertex_location()
+
+    def generate(self, concept: str, attrs: dict) -> str | None:
+        if not self.project:
+            return None
+        body = json.dumps(
+            {"contents": [{"role": "user", "parts": [{"text": _PROMPT.format(concept=concept)}]}]}
+        ).encode()
+        try:
+            req = urllib.request.Request(
+                _vertex_generate_url(self.project, self.location, self.model),
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {_google_access_token()}",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read())
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return _extract_svg(text)
+        except Exception:
+            return None
+
+
+def _vertex_project() -> str:
+    return (
+        os.environ.get("VERTEX_PROJECT")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        or os.environ.get("GCLOUD_PROJECT")
+        or ""
+    ).strip()
+
+
+def _vertex_location() -> str:
+    return (
+        os.environ.get("VERTEX_LOCATION")
+        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        or "us-central1"
+    ).strip()
+
+
+def _vertex_generate_url(project: str, location: str, model: str) -> str:
+    host = (
+        "aiplatform.googleapis.com"
+        if location == "global"
+        else f"{location}-aiplatform.googleapis.com"
+    )
+    return (
+        f"https://{host}/v1/projects/{project}/locations/{location}/publishers/google/"
+        f"models/{model}:generateContent"
+    )
+
+
+def _google_access_token() -> str:
+    token = os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN", "").strip()
+    if token:
+        return token
+    with contextlib.suppress(Exception):
+        import google.auth
+        from google.auth.transport.requests import Request
+
+        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        creds.refresh(Request())
+        if creds.token:
+            return creds.token
+    for cmd in (
+        ["gcloud", "auth", "application-default", "print-access-token"],
+        ["gcloud", "auth", "print-access-token"],
+    ):
+        with contextlib.suppress(Exception):
+            out = subprocess.check_output(cmd, text=True, timeout=10).strip()
+            if out:
+                return out
+    raise RuntimeError(
+        "could not get Google Cloud access token; run `gcloud auth application-default login` "
+        "or set GOOGLE_APPLICATION_CREDENTIALS/GOOGLE_OAUTH_ACCESS_TOKEN"
+    )
+
+
 class NullProvider:
     """No generation (the default). Unknown concepts fall straight to the labeled-box
     backstop — recipes + composition + the Tabler catalog already cover ~98%, and
@@ -124,6 +212,8 @@ def default_provider() -> SvgProvider:
         return OllamaProvider(model=r.model)
     if r.provider == "gemini":
         return GeminiProvider()
+    if r.provider == "vertex":
+        return VertexProvider()
     if r.provider == "fixture":
         return FixtureProvider()
     return NullProvider()
