@@ -502,6 +502,17 @@ For real per-topic richness on a live (Ollama) setup, the motion/staging/present
 must be added to **`lift_beats`** (the LLM→plan bridge) and the **LLM prompt** must request
 multi-entity staged motion + shot direction. That is the next big lever.
 
+**Resolution status (the 13-point critique).** Done: #1 cartoon-feel (exemplar + lift_beats
+motion/points + staging), #2 concept animation (nature verbs rise/grow/fall/flow), #3 direction
+(shot-by-shot reveal + presenter points + camera), #4 empty scenes (denser staging), #5 hierarchy
+(role-scale), #6 passive presenter (points at each concept), #7 washout (solid backgrounds), #8
+status (cleared on play), #9 export captures UI (`?clean=1` board-only surface), #10 silent video
+(`/api/engine/audio` server TTS — recorder mux is the 1-line last mile), #11 captions (video-grade),
+#12 story/visual disconnect (narration paired to the visual it describes — off-by-one fixed). #13
+(assets aren't the bottleneck) — addressed by the direction work above. **Remaining:** the recorder
+mux line (in your `record_lesson.js` WIP) and lip-sync (mouth↔audio, Phase 4b); the any-topic brain
+is config (`STORY_PROVIDER=gemini`), and lift_beats now makes its output a directed cartoon.
+
 **Roadmap (remaining, priority order):**
 - **A2 — LLM→visual richness:** give `lift_beats` the same defaults the exemplar shows (each
   shown concept gets a nature motion verb; presenter points at each; reveal shot-by-shot), and
