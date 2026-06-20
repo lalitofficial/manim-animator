@@ -81,6 +81,7 @@ BEAT_SCHEMA = {
                     "dst": {"type": "string"},
                     "label": {"type": "string"},
                     "text": {"type": "string"},
+                    "count": {"type": "integer"},  # draw MANY of the concept (rain/stars/…)
                 },
                 "required": ["kind"],
             },
@@ -137,6 +138,9 @@ _PROMPT = (
     "- a `relation` arg must be the id of an ALREADY-shown thing (or a region for at(...)).\n"
     "- every `connect` needs BOTH src and dst, each an id you already showed.\n"
     "- {concept_count}-6 `show` beats total; pair most with one short `say`.\n"
+    "- for MANY of one thing, add a number `count` to the show (e.g. "
+    '{{"kind":"show","entity":"stars","concept":"star","count":7}}); concepts like rain, '
+    "snow, forest, crowd already render as many automatically.\n"
     "- in each `say`, WRAP the word naming a thing you `show` in [brackets], using the show's "
     'id/concept word, e.g. {{"kind":"say","text":"The [sun] warms the [ground]."}} after showing sun '
     "and ground. Bracket ONLY words that match a `show`; the word is still spoken normally.\n"
@@ -891,14 +895,13 @@ def parse_beats(data: dict | list) -> list[Beat]:
             continue
         kind = b.get("kind")
         if kind == "show" and b.get("entity"):
-            out.append(
-                show(
-                    b["entity"],
-                    b.get("concept"),
-                    _relation(b.get("relation")),
-                    **(b.get("geometry") or {}),
-                )
-            )
+            geom = dict(b.get("geometry") or {})
+            # quantity may arrive at the top level (e.g. {"kind":"show",...,"count":7}); fold
+            # the recognized multiplicity keys into geometry so measure() sees them.
+            for key in ("count", "arrangement"):
+                if key in b and key not in geom:
+                    geom[key] = b[key]
+            out.append(show(b["entity"], b.get("concept"), _relation(b.get("relation")), **geom))
         elif kind == "connect":
             src, dst = b.get("src") or b.get("entity"), b.get("dst") or b.get("target")
             if src and dst:  # b["kind"] is the beat kind ("connect"), NOT a connector type

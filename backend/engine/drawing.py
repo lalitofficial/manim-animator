@@ -122,6 +122,13 @@ def measure(thing: Thing, generate: bool = True, style: str = "whiteboard") -> D
     if cached is not None:
         return cached
 
+    # Multiplicity: a plural concept (rain/stars/forest) or an explicit `count` expands
+    # into N copies of a base glyph, arranged as ONE group the positioner places as a box.
+    multi = _multiple(thing, style, generate)
+    if multi is not None:
+        _cache[k] = multi
+        return multi
+
     # Bundle gate (non-breaking): only consulted when a bundle is actually disabled, so
     # the default all-enabled runtime is byte-identical. A concept whose owning bundle is
     # off falls to the labeled-box backstop instead of resolving its asset. PUBLISHED
@@ -246,6 +253,35 @@ def _character(thing: Thing) -> Drawable | None:
         extent=Extent(round(x1 - x0, 4), round(y1 - y0, 4)),
         rung=1,
         source="character",
+    )
+
+
+def _multiple(thing: Thing, style: str, generate: bool) -> Drawable | None:
+    """Expand an inherently-plural concept (or an explicit `count`) into a tiled group:
+    resolve the BASE glyph through the normal ladder, then repeat it. Returns None for a
+    single glyph so the normal path runs."""
+    from engine import multiplicity
+
+    prof = multiplicity.profile(thing.concept, thing.geometry_attrs)
+    if prof is None:
+        return None
+    geom = {
+        k: v for k, v in thing.geometry_attrs.items() if k not in ("count", "arrangement", "base")
+    }
+    box = float(geom.get("size", multiplicity.DEFAULT_BOX))
+    base_thing = replace(thing, concept=prof.base, geometry_attrs={**geom, "size": 1.0})
+    base = measure(base_thing, generate=generate, style=style)
+    if base.source == "box":  # base itself is unknown — don't tile boxes, let it fall through
+        return None
+    strokes = multiplicity.tile(base.strokes, prof.count, prof.arrangement, box=box)
+    if not strokes:
+        return None
+    x0, y0, x1, y1 = g.strokes_bbox(strokes)
+    return Drawable(
+        strokes=tuple(strokes),
+        extent=Extent(round(x1 - x0, 4), round(y1 - y0, 4)),
+        rung=base.rung,
+        source=base.source,
     )
 
 
