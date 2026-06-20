@@ -266,6 +266,36 @@ def engine_classify(topic: str = "photosynthesis", request: str | None = None):
     }
 
 
+@app.get("/api/engine/audio")
+def engine_audio(
+    topic: str = "the water cycle",
+    mode: str = "learn",
+    audience: str | None = None,
+    style: str | None = None,
+    text: str | None = None,
+):
+    """Server-side TTS: the lesson's narration as a real WAV, so an exported video can have a
+    sound track (browser Web Speech can't be captured by a headless recorder). `text` synthesizes
+    arbitrary text; otherwise narration is built from the lesson. 501 when no server-side TTS is
+    available (set VOICE_PROVIDER=say on macOS, or install a local provider)."""
+    from engine import models, voice
+    from engine.director import direct
+    from engine.stream import stream_lesson
+
+    if text is None:
+        spec = direct(topic, mode=mode, audience=audience, style=style)
+        text = voice.narration(stream_lesson(topic, spec=spec))
+    resolved = models.resolve_voice().provider
+    provider = resolved if voice.available(resolved) else ("say" if voice.available("say") else "")
+    audio = voice.synthesize(text, provider) if provider else None
+    if not audio:
+        raise HTTPException(
+            status_code=501,
+            detail="no server-side TTS available; set VOICE_PROVIDER=say (macOS) for exportable audio",
+        )
+    return Response(content=audio, media_type="audio/wav")
+
+
 @app.get("/api/engine/lesson")
 def engine_lesson(
     topic: str = "the water cycle",

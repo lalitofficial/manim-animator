@@ -249,6 +249,15 @@ def resolve_voice() -> Resolved:
             False,
             "browser Web Speech — free, zero-install; coarse (text-estimated) lip-sync",
         )
+    if requested in ("say", "system"):  # macOS native — zero-install server-side TTS
+        return Resolved(
+            "voice",
+            requested,
+            "say",
+            None,
+            False,
+            "macOS `say` — free, zero-install server-side TTS (real audio track for exports)",
+        )
     if requested in VOICE_LOCAL:
         return Resolved(
             "voice",
