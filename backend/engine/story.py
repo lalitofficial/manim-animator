@@ -733,7 +733,80 @@ def _water_cycle_plan(spec: DirectorSpec, P):
     return P.LessonPlan("The Water Cycle", (scene,), style=spec.style)
 
 
-_PROCESS_CUES: tuple[tuple[str, object], ...] = (("water cycle", _water_cycle_plan),)
+def _day_night_plan(spec: DirectorSpec, P):
+    cartoon = spec.style == "cartoon"
+
+    def point(target: str):
+        return (P.Action("point", "guide", target),) if cartoon else ()
+
+    ents = [
+        P.Entity(
+            "title",
+            "text",
+            "text",
+            appearance={"text": "Day and Night", "font": 0.55},
+            place=at("top"),
+        ),
+        P.Entity("sun", "sun", role="hero"),
+        P.Entity("house", "house", role="prop"),
+        P.Entity("moon", "moon", role="hero"),
+        P.Entity("stars", "star", role="particle"),
+    ]
+    shots = [
+        P.Shot(
+            "establishing",
+            enter=("title", "sun", "house"),
+            say="By day, the sun lights up the sky over our homes.",
+            actions=(P.Action("pulse", "sun", dur="long"), *point("sun")),
+            hold="short",
+        ),
+        P.Shot(
+            "medium",
+            focus="sun",
+            enter=(),
+            say="As the Earth slowly spins, the sun sinks toward the horizon and sets.",
+            actions=(P.Action("fall", "sun", dur="long"), *point("sun")),
+            hold="short",
+        ),
+        P.Shot(
+            "medium",
+            focus="moon",
+            enter=("moon",),
+            say="Night falls, and the moon takes the sun's place in the sky.",
+            actions=(P.Action("rise", "moon", dur="long"), *point("moon")),
+            hold="short",
+        ),
+        P.Shot(
+            "medium",
+            focus="stars",
+            enter=("stars",),
+            say="Tiny stars glimmer across the dark.",
+            actions=(P.Action("pulse", "stars", dur="long"), *point("stars")),
+            hold="short",
+        ),
+        P.Shot(
+            "wide",
+            enter=(),
+            say="And as the Earth keeps turning, the sun returns — a brand new day.",
+            actions=(P.Action("pulse", "sun", dur="long"), *point("sun")),
+            hold="long",
+        ),
+    ]
+    scene = P.ScenePlan(
+        "s0",
+        setting="sky",
+        entities=tuple(ents),
+        shots=tuple(shots),
+        purpose="explain",
+        emotion="wonder",
+    )
+    return P.LessonPlan("Day and Night", (scene,), style=spec.style)
+
+
+_PROCESS_CUES: tuple[tuple[str, object], ...] = (
+    ("water cycle", _water_cycle_plan),
+    ("day and night", _day_night_plan),
+)
 
 
 def _process_plan(spec: DirectorSpec, P):
