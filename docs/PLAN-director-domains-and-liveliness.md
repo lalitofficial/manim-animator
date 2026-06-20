@@ -473,6 +473,51 @@ three things that most change the product feel, all on existing seams.
 
 ---
 
+# Part E — Directed-cartoon pivot (creative direction)
+
+*Added 2026-06-20 after a visual review: the output read as "narrated board preview," not a
+directed cartoon. Diagnosis grounded in captured frames + two pipeline maps.*
+
+**Diagnosis.** The pipeline already has the directed-film skeleton (`ScenePlan → Shot →
+Action`, a `VERBS` motion set, camera framing by `emotion`/`purpose`, a posed presenter rig
+with gesture clips + visemes). It's **starved of input**: the story emits thin scenes (one
+hero that "acts once," or generic cards), staging is deterministic banding (sparse), motion is
+one discrete swap per shot, the presenter gestures once. So the board shows *presenter + one
+prop + dead space*.
+
+**Shipped (committed, visually verified via headless-Chrome capture):**
+- **Production polish** (`fix(board)`): status no longer stuck on "Planning…" (cleared on
+  playback start); transition **washout** fixed (backgrounds draw solid, not fading from the
+  pale empty board); **video-grade captions** (engine 24px+shadow, Studio 20px bold).
+- **Water-cycle directed exemplar** (`feat(story)`): a hand-authored, single-scene directed
+  cartoon — sun + vapor + cloud + rain + mountain, **revealed shot-by-shot**, each **acting**
+  (`rise`/`grow`/`fall`), the presenter **pointing** at each step. Proves the directed pipeline
+  produces a rich animated scene (9 action events, 13 draws) and is the **reference shape** the
+  LLM-story prompt should target. Applies to learn/draw/explain (story mode keeps its arc).
+
+**CRITICAL insight — the Ollama path bypasses the offline exemplar.** With `STORY_PROVIDER`
+unset, the default is **auto → local Ollama**, which takes the `plan_lesson` LLM path
+(`lift_beats`), *not* `tell_plan`. So the authored exemplar only fires in **template** mode.
+For real per-topic richness on a live (Ollama) setup, the motion/staging/presenter choreography
+must be added to **`lift_beats`** (the LLM→plan bridge) and the **LLM prompt** must request
+multi-entity staged motion + shot direction. That is the next big lever.
+
+**Roadmap (remaining, priority order):**
+- **A2 — LLM→visual richness:** give `lift_beats` the same defaults the exemplar shows (each
+  shown concept gets a nature motion verb; presenter points at each; reveal shot-by-shot), and
+  strengthen the story prompt to emit process motion + staging. *This is what makes the user's
+  Ollama lessons rich.*
+- **Staging density:** `compose_cartoon` — scale the hero up, cut dead space, real
+  foreground/background composition (the board is bottom-heavy with a tall empty sky).
+- **Presenter performance:** mid-scene gestures (not one clip per scene), stronger pointing,
+  react/nod; lip-sync wired to word boundaries.
+- **B — Production audio + clean export:** server-side TTS (Piper/Kokoro recommended, local) →
+  `/api/engine/audio` → muxed into the recorder; a clean board-only export surface (the recorder
+  currently films the app UI). `models.resolve_voice()` already resolves a provider; there's no
+  audio-file endpoint yet.
+
+---
+
 # Appendix — Hardened verification
 
 Each claim below was independently checked by **three adversarial verifiers** (fetching the

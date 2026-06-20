@@ -651,11 +651,108 @@ _PLAN_MODES = {
 }
 
 
+# --------------------------------------------------------------------------- #
+# Process EXEMPLARS — a few well-known processes authored as DIRECTED, ANIMATED
+# scenes: multiple staged entities, each acting (rise/grow/fall/flow), revealed shot
+# by shot, with the presenter pointing at each step. Offline templates are generic by
+# nature, so an authored exemplar is what proves + demos the directed-cartoon pipeline
+# and is the reference shape the LLM story prompt targets (Phase A).
+# --------------------------------------------------------------------------- #
+def _water_cycle_plan(spec: DirectorSpec, P):
+    cartoon = spec.style == "cartoon"
+
+    def point(target: str):  # the presenter physically points at the concept being taught
+        return (P.Action("point", "guide", target),) if cartoon else ()
+
+    # The sea is the scene's environment (the sky scene's horizon), so we don't stage a giant
+    # water "prop" — the cycle is carried by the sun + the vapor/cloud/rain that act through it.
+    ents = [
+        P.Entity(
+            "title",
+            "text",
+            "text",
+            appearance={"text": "The Water Cycle", "font": 0.55},
+            place=at("top"),
+        ),
+        P.Entity("sun", "sun", role="hero"),
+        P.Entity("vapor", "droplet", role="particle"),  # evaporation — small + rising
+        P.Entity("cloud", "cloud", role="hero"),
+        P.Entity("rain", "rain", role="particle"),
+        P.Entity("mountain", "mountain", role="prop"),
+    ]
+    shots = [
+        P.Shot(
+            "establishing",
+            enter=("title", "sun"),
+            say="The sun warms the water of the oceans below.",
+            actions=(P.Action("pulse", "sun", dur="long"), *point("sun")),
+            hold="short",
+        ),
+        P.Shot(
+            "medium",
+            focus="vapor",
+            enter=("vapor",),
+            say="The water heats up, evaporates, and rises as invisible vapor.",
+            actions=(P.Action("rise", "vapor", dur="long"), *point("vapor")),
+            hold="short",
+        ),
+        P.Shot(
+            "medium",
+            focus="cloud",
+            enter=("cloud",),
+            say="High in the sky it cools and condenses into clouds.",
+            actions=(P.Action("grow", "cloud", dur="long"), *point("cloud")),
+            hold="short",
+        ),
+        P.Shot(
+            "medium",
+            focus="rain",
+            enter=("rain",),
+            say="The clouds grow heavy, and rain falls back to the earth.",
+            actions=(P.Action("fall", "rain", dur="long"), *point("rain")),
+            hold="short",
+        ),
+        P.Shot(
+            "wide",
+            enter=("mountain",),
+            say="It collects on the land and flows back to the ocean — and the cycle begins again.",
+            actions=(P.Action("flow", "mountain", dur="long"), *point("mountain")),
+            hold="long",
+        ),
+    ]
+    scene = P.ScenePlan(
+        "s0",
+        setting="sky",
+        entities=tuple(ents),
+        shots=tuple(shots),
+        purpose="explain",
+        emotion="wonder",
+    )
+    return P.LessonPlan("The Water Cycle", (scene,), style=spec.style)
+
+
+_PROCESS_CUES: tuple[tuple[str, object], ...] = (("water cycle", _water_cycle_plan),)
+
+
+def _process_plan(spec: DirectorSpec, P):
+    """A directed exemplar for a recognized process topic, else None (fall to the modes).
+    Story mode is a narrative ARC (its own multi-scene structure), so the process exemplar
+    only applies to the explain-the-concept modes (learn/draw/explain)."""
+    if spec.mode == "story":
+        return None
+    t = spec.topic.strip().lower()
+    for cue, fn in _PROCESS_CUES:
+        if cue in t:
+            return fn(spec, P)
+    return None
+
+
 def tell_plan(spec: DirectorSpec):
     """The deterministic template as a directed LessonPlan (the offline film)."""
     from engine import plan as P
 
-    return _PLAN_MODES.get(spec.mode, _learn_plan)(spec, P)
+    proc = _process_plan(spec, P)  # a rich authored exemplar wins over the generic modes
+    return proc if proc is not None else _PLAN_MODES.get(spec.mode, _learn_plan)(spec, P)
 
 
 def plan_lesson(topic: str, spec=None) -> PlanResult:
