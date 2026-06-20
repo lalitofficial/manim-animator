@@ -666,7 +666,10 @@ def _vertex_story(req: StoryStudioRequest, model: str | None) -> StoryPackage:
     body = json.dumps(
         {
             "contents": [{"role": "user", "parts": [{"text": _prompt(req)}]}],
-            "generationConfig": {"responseMimeType": "application/json"},
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "responseSchema": _schema(),  # force the exact shape (title/story/scenes/…)
+            },
         }
     ).encode()
     call = urllib.request.Request(
@@ -690,12 +693,15 @@ def _prompt(req: StoryStudioRequest) -> str:
         "story quality before animation.\n"
         f"Prompt: {req.prompt}\n"
         f"Arc: {req.arc}. Audience: {req.audience}. Tone: {req.tone}. Length: {req.length}.\n"
-        "Output valid JSON only. Requirements:\n"
-        "- Use a real setup, build, and payoff.\n"
-        "- Include 3-5 scenes. Each scene needs purpose, emotion, focus, beat, direction, "
+        "Output a single valid JSON OBJECT with EXACTLY these top-level keys: title, logline, "
+        "characters, promise, character_arc, scenes, story. Do NOT invent other top-level keys "
+        "(no setup/build/payoff keys — fold those into the `story` and `scenes`). Requirements:\n"
+        "- `story`: 5-8 plain sentences with a real beginning, middle, and end (not a teaser).\n"
+        "- `scenes`: 3-5 scenes. Each scene needs purpose, emotion, focus, beat, direction, "
         "goal, conflict, turn, reaction, and decision.\n"
-        "- Include a promise and character_arc with want, need, obstacle, stakes, revelation.\n"
-        "- The story must be complete, not a teaser.\n"
+        "- For ANIMATION, make each scene's `focus` and `direction` name CONCRETE, drawable "
+        "subjects that ACT (e.g. 'a cloud', 'rising vapor', 'lava bursting up'), not abstractions.\n"
+        "- `character_arc` with protagonist, want, need, obstacle, stakes, revelation.\n"
         "- Avoid generic AI phrases like 'in a world where' and 'little did they know'.\n"
         "- Keep prose clear, concrete, and visual, but no coordinates or renderer instructions."
     )
@@ -791,7 +797,14 @@ def _parse_package(data: dict) -> StoryPackage:
         raise RuntimeError("model returned fewer than 3 scenes")
     story = str(data.get("story", "")).strip()
     if len(_sentences(story)) < 5:
-        raise RuntimeError("model returned an incomplete story")
+        # The model gave rich SCENES but a thin/absent prose blob (e.g. it emitted setup/build/
+        # payoff keys instead of `story`). The scenes ARE the narrative — synthesize the prose
+        # from their beats rather than discard good content. Animation consumes scenes, not prose.
+        beats = [s.beat.strip() for s in scenes if s.beat.strip()]
+        synth = " ".join(b if b.endswith((".", "!", "?")) else b + "." for b in beats)
+        story = f"{story} {synth}".strip() if story else synth
+        if len(_sentences(story)) < 3:
+            raise RuntimeError("model returned neither a story nor usable scene beats")
     characters = [str(c) for c in data.get("characters", []) if str(c).strip()]
     protagonist = characters[0] if characters else "the protagonist"
     arc = data.get("character_arc") if isinstance(data.get("character_arc"), dict) else {}

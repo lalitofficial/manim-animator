@@ -856,6 +856,22 @@ def _stem(w: str) -> str:  # a crude plural fold for dedup (cloud≈clouds), not
     return w[:-1] if len(w) > 4 and w.endswith("s") else w
 
 
+_STOP_WORDS = frozenset(
+    {"the", "a", "an", "of", "to", "up", "in", "on", "at", "its", "his", "her", "and", "with"}
+)
+
+
+def _first_word(text: str) -> str:
+    """The last-resort concept when NOTHING in a scene draws: a single SHORT content word, never
+    a whole rich phrase (a 90-char focus must not become one giant labeled box). Picks the first
+    non-trivial token; failing that, a hard-truncated head so the label stays sane."""
+    for raw in (text or "").lower().replace("-", " ").split():
+        w = raw.strip(".,!?;:'\"()")
+        if len(w) > 2 and w not in _STOP_WORDS:
+            return w
+    return (text or "subject").strip()[:20]
+
+
 # When the scene's DIRECTION names no motion, the hero still acts — matched to its nature.
 _NATURE_VERB = {"rise": "rise", "fall": "fall", "flow": "flow"}
 
@@ -900,6 +916,9 @@ def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
     `direction` -> a process motion verb on the subject; `purpose`/`emotion` -> scene mood. The
     number of story scenes (driven by Story-Studio `length`) becomes the length of the video."""
     title = (pkg.get("title") or "lesson").strip() or "lesson"
+    # The topic's own drawable subject — the on-topic fallback when a scene's rich prose names
+    # nothing the catalog can draw yet (e.g. "a glowing column of magma" → fall back to "volcano").
+    title_subjects = _drawable_concepts(style, title)
     scenes_out: list[ScenePlan] = []
     for i, sc in enumerate(pkg.get("scenes") or []):
         if not isinstance(sc, dict):
@@ -907,10 +926,13 @@ def from_story_package(pkg: dict, style: str = "cartoon") -> LessonPlan:
         focus = (sc.get("focus") or "").strip() or title
         # Stage the scene as a populated WORLD: mine several drawable SUBJECTS (not one prop in an
         # empty field). The first that draws is the hero (it acts the process); the rest are props
-        # — or particles for small-and-many lexemes (rain, sparks). Fall back to the raw focus.
-        subjects = _drawable_concepts(
-            style, focus, sc.get("direction") or "", sc.get("beat") or ""
-        ) or [focus]
+        # — or particles for small-and-many lexemes (rain, sparks). Degrade to the topic's subject,
+        # then a SHORT word — never the whole focus phrase (which would render as one giant box).
+        subjects = (
+            _drawable_concepts(style, focus, sc.get("direction") or "", sc.get("beat") or "")
+            or title_subjects
+            or [_first_word(focus)]
+        )
         hero = f"c{i}"
         ents = [Entity(hero, subjects[0], role="hero")]
         for k, w in enumerate(subjects[1:]):

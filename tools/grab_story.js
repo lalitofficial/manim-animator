@@ -13,6 +13,7 @@ const arg = (n, d) => {
 const URL = arg('url', 'http://127.0.0.1:8010');
 const prompt = arg('prompt', 'how rain forms');
 const arc = arg('arc', 'explainer');
+const provider = arg('provider', 'auto'); // template = instant; auto = real model (Vertex/Ollama)
 const dir = arg('dir', '/tmp/ef/story');
 const nFrames = parseInt(arg('n', '14'), 10);
 const gap = parseInt(arg('gap', '1300'), 10);
@@ -33,7 +34,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await p.goto(URL + '/story-studio', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await sleep(400);
   await p.evaluate(
-    (pr, a) => {
+    (pr, a, prov) => {
       const set = (id, v) => {
         const el = document.getElementById(id);
         if (el) {
@@ -43,18 +44,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         }
       };
       set('prompt', pr);
-      set('providerSelect', 'template');
+      set('providerSelect', prov);
       set('arc', a);
     },
     prompt,
     arc,
+    provider,
   );
   await p.click('#generate');
-  // wait until the package rendered (the Animate button enables)
+  // wait until the package rendered (the Animate button enables); a real model takes longer
   let t0 = Date.now();
   while (await p.evaluate(() => document.getElementById('animate').disabled)) {
-    if (Date.now() - t0 > 30000) throw new Error('generate never enabled Animate');
-    await sleep(300);
+    if (Date.now() - t0 > 90000) throw new Error('generate never enabled Animate');
+    await sleep(400);
   }
   // --- Stage 2: Approve & Animate -> navigates to /engine and plays the bridged cartoon ---
   await Promise.all([
