@@ -529,6 +529,49 @@ is config (`STORY_PROVIDER=gemini`), and lift_beats now makes its output a direc
 
 ---
 
+# Part F — Backlog (left off)
+
+*The running list of everything deferred across the session, priority order. Model-agnostic
+items (benefit every lesson incl. Gemini) rank above topic-specific or future-research work.*
+
+**Tier 1 — model-agnostic cartoon quality (every lesson benefits; verifiable via capture)**
+- [ ] **More process exemplars** — author day/night, photosynthesis, life cycles (the proven
+      `_water_cycle_plan` pattern). Zero-config rich lessons for common topics + reference shape
+      for the LLM; each also stress-tests staging on new entity mixes.
+- [ ] **Presenter performance depth** — vary the host's mid-scene gestures (react / nod / emphasize),
+      not just one entrance clip + point; stronger pointing.
+- [ ] **Staging composition** — kill the remaining horizontal dead space (props cluster left-of-centre
+      when few); spread across the width; scale up when sparse.
+- [ ] **Camera / cinematic build** — more deliberate push-ins + holds; foreground/background depth.
+
+**Tier 2 — production polish**
+- [ ] **Export A/V sync** — tighten the ~2.5 s trailing drift (trim/pad to the narration).
+- [ ] **Export lip-sync** — sync the presenter's mouth to the *exported* audio (needs word-timed TTS;
+      live board already lip-syncs via Web Speech boundaries).
+- [ ] **Recorder mux line** — fold the ffmpeg audio mux into `tools/record_lesson.js` (your WIP).
+
+**Tier 3 — assets & domains**
+- [ ] **Run the real Bioicons sync** (`make sync-bioicons D=biology`) + publish — first real bio
+      coverage; measure the colorless-class-fill rate. Never run on real data yet (only fixtures).
+- [ ] **Surface per-icon author/attribution** (CC-BY) in the Studio + a credits beat.
+- [ ] **Math glyph counters** — even-odd hole subtraction so a/b/e/o aren't filled (needs a hole
+      concept in the Stroke/render model — not a quick fix).
+- [ ] **schemdraw circuits / data-viz charts** — need the Story to emit structured specs, not just
+      a concept string.
+- [ ] **`biology`/`chemistry` bundles** — meaningful once there are bio *families* (published
+      candidates bypass the bundle gate today).
+
+**Tier 4 — brain & config (mostly the user's action)**
+- [ ] **Gemini end-to-end** — verify a real `STORY_PROVIDER=gemini` lesson (needs an API key).
+- [ ] **Emphasis-text primitive** — kinetic text on any beat (not just the backstop): add `text_anim`
+      to `PAINT_ATTR_KEYS` + a Beat field.
+
+**Tier 5 — tech debt**
+- [ ] **pyright advisory** — svgelements `Optional` noise in bioicons/mathtext/svgnorm (non-blocking).
+- [ ] **Studio caption** — the BoardPanel.svelte bump needs `make ui-build` to take effect.
+
+---
+
 # Appendix — Hardened verification
 
 Each claim below was independently checked by **three adversarial verifiers** (fetching the
