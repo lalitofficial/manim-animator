@@ -59,6 +59,9 @@ sync-bioicons: ## Sync Bioicons scientific SVGs into COLORED candidate packs (pa
 lesson: ## Render a full lesson end-to-end (pass T="a topic") -> build/engine/lesson.svg
 	PYTHONPATH=backend uv run python -m engine.bench_lesson $(T)
 
+export: ## Export a lesson to MP4 (clean board + narration audio): make export T="the water cycle" (needs `make dev`)
+	uv run --with playwright python scripts/export_lesson.py "$(T)" --out build/export/lesson.mp4
+
 ui: ## Run the Svelte Studio dev server (proxies /api to uvicorn on :8000)
 	cd frontend && npm run dev
 
