@@ -573,10 +573,14 @@ def compile_plan(
                 yield say_ev
             for a in sorted(shot.actions, key=lambda a: a.at):
                 if a.verb == "connect" and a.target:
-                    # Cartoon is FILM: drop the connector LABEL (narration + the host
-                    # pointing + semantic motion carry the relationship, not a diagram tag).
-                    label = None if style == palette.CARTOON else a.params.get("label")
-                    conn = Connector(f"{a.actor}->{a.target}", a.actor, a.target, "arrow", label)
+                    # Cartoon is FILM, not a diagram: NO arrows. The relationship is shown by the
+                    # SUBJECTS' motion (one thing rises/flows/transforms into the next), never an
+                    # edge between icons. Whiteboard stays a labeled diagram (arrows + labels).
+                    if style == palette.CARTOON:
+                        continue
+                    conn = Connector(
+                        f"{a.actor}->{a.target}", a.actor, a.target, "arrow", a.params.get("label")
+                    )
                     op = route(conn, pmap, style=style, color=edge_ink)
                     if op is not None:
                         yield {"type": "connector", "op": op_to_dict(op)}

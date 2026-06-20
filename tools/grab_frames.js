@@ -47,17 +47,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }, topic);
   await p.keyboard.press('Enter');
-  await sleep(900); // let the abort+restart settle so we capture THIS topic, not a prior trigger
   const boardEls = () =>
     p.evaluate(() => {
       const s = document.querySelector('.board-wrap svg');
       return s ? s.querySelectorAll('path,polyline,circle,rect,g,image,text').length : 0;
     });
-  const t0 = Date.now();
-  while ((await boardEls()) <= 4) {
-    if (Date.now() - t0 > 150000) break;
+  // The NEW (topic) lesson only takes over once its LLM fetch returns: its start event CLEARS the
+  // board, then it refills. The OLD chip-triggered default lesson lingers during the (slow, ~10-40s)
+  // fetch — waiting for "has content" alone captured THAT. So wait for a CLEAR, then a REFILL.
+  const baseline = await boardEls();
+  const clearTo = Math.max(2, Math.floor(baseline * 0.3));
+  let t0 = Date.now();
+  while ((await boardEls()) > clearTo) {
+    if (Date.now() - t0 > 90000) break; // a cloud Gemini fetch can take tens of seconds
     await sleep(400);
   }
+  t0 = Date.now();
+  while ((await boardEls()) <= 6) {
+    if (Date.now() - t0 > 40000) break;
+    await sleep(400);
+  }
+  await sleep(900); // settle into the new lesson
   const clip = await p.evaluate(() => {
     const s = document.querySelector('.board-wrap svg');
     const r = s.getBoundingClientRect();

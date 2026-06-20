@@ -79,53 +79,36 @@ def test_skips_concepts_with_no_draw():
     assert {p.payload["target"] for p in pts} == {"sun"}  # ghost isn't drawn -> no point, no anchor
 
 
-def test_camera_follows_each_narrated_concept():
+def test_no_camera_chasing_animation_is_in_the_subjects():
+    """The choreographer must NOT cut/pan the camera per concept — that reads as 'the animation is
+    just the camera moving between objects' (the wrong principle). Motion lives in the SUBJECTS; the
+    camera stays a calm wide frame. It also STRIPS compile_plan's per-shot 'cut to focus' (sub-full)
+    cameras so the lens doesn't chase. The concept still REVEALS as its word is spoken."""
     events = [
         {"type": "start", "topic": "sky", "style": "cartoon", "board": {"w": 14.0, "h": 8.0}},
         {"type": "draw", "op": {"id": "guide", "source": "character", "z": 3}},
-        {
-            "type": "draw",
-            "op": {"id": "sun", "source": "icon", "strokes": [{"points": [[0, 0], [1, 0]]}]},
-        },
+        {"type": "camera", "x": 0.5, "y": 0.0, "w": 8.4, "h": 4.8, "ms": 0},  # a per-shot focus cut
+        {"type": "draw", "op": {"id": "sun", "source": "icon", "strokes": [{"points": [[0, 0]]}]}},
         {
             "type": "say",
-            "text": "The sun shines.",
+            "text": "The sun.",
             "marks": [{"entity": "sun", "word": "sun", "start": 4, "end": 7}],
         },
     ]
     tl = choreograph.choreograph(_tl(events))
     cams = [e for e in tl.entries if e.kind == "camera"]
-    assert cams and cams[0].at == "m:sun"  # camera anchored to the concept's word
-    p = cams[0].payload
-    assert abs(p["x"] - 0.5) < 0.1 and abs(p["y"]) < 0.1  # centered on the sun's bbox
-    assert 0 < p["w"] <= 14.0 and 0 < p["h"] <= 8.0  # window stays on-board
+    assert all(e.payload.get("w", 14.0) >= 14.0 for e in cams)  # only full-frame; no sub-full chase
+    assert any(e.kind == "draw" and e.at == "m:sun" for e in tl.entries)  # reveal-as-spoken stays
 
 
-def test_no_follow_camera_when_not_cinematic():
-    events = [
-        {"type": "start", "board": {"w": 14.0, "h": 8.0}},
-        {"type": "draw", "op": {"id": "sun", "strokes": [{"points": [[0, 0]]}]}},
-        {
-            "type": "say",
-            "text": "sun",
-            "marks": [{"entity": "sun", "word": "sun", "start": 0, "end": 3}],
-        },
-    ]
-    tl = choreograph.choreograph(_tl(events), cinematic=False)
-    assert not any(e.kind == "camera" for e in tl.entries)  # a diagram stays a static wide frame
-
-
-def test_choreographer_owns_concept_cameras_dropping_sequential_frames():
-    """#1b: on the timeline path the choreographer is the SOLE camera authority. It DROPS
-    compile_plan's sequential per-shot concept frames (sub-full) so they don't fight, keeps the
-    full-frame bookends, and re-emits one camera per narrated concept anchored to its word + CUT."""
+def test_calm_camera_keeps_establish_drops_per_shot_frames():
+    """The choreographer keeps compile_plan's full-frame establish bookend but DROPS its per-shot
+    'cut to focus' (sub-full) frames — so the lens doesn't chase concepts — and adds NO per-concept
+    camera. The eye follows the subjects' motion in a steady wide shot, not the camera."""
     events = [
         {"type": "start", "topic": "sky", "style": "cartoon", "board": {"w": 14.0, "h": 8.0}},
         {"type": "camera", "x": 0.0, "y": 0.0, "w": 14.0, "h": 8.0, "ms": 0},  # establish — KEPT
-        {
-            "type": "draw",
-            "op": {"id": "sun", "source": "icon", "strokes": [{"points": [[0, 0], [1, 0]]}]},
-        },
+        {"type": "draw", "op": {"id": "sun", "source": "icon", "strokes": [{"points": [[0, 0]]}]}},
         {
             "type": "camera",
             "x": 0.5,
@@ -136,17 +119,13 @@ def test_choreographer_owns_concept_cameras_dropping_sequential_frames():
         },  # per-shot frame — DROPPED
         {
             "type": "say",
-            "text": "The sun shines.",
+            "text": "The sun.",
             "marks": [{"entity": "sun", "word": "sun", "start": 4, "end": 7}],
         },
     ]
     cams = [e for e in choreograph.choreograph(_tl(events)).entries if e.kind == "camera"]
-    assert any(c.payload["w"] == 14.0 for c in cams)  # the full-frame establish bookend stays
-    # no SEQUENTIAL sub-full camera survives — every sub-full frame is now anchored to a word
-    assert all(c.at != "" for c in cams if c.payload["w"] < 14.0)
-    follow = [c for c in cams if c.at == "m:sun"]
-    assert len(follow) == 1 and follow[0].payload["ms"] == 0  # one concept, anchored + CUT
-    assert follow[0].payload["w"] < 14.0  # framed as a medium, not the whole stage
+    assert any(c.payload["w"] == 14.0 for c in cams)  # the full-frame establish stays
+    assert all(c.payload.get("w", 14.0) >= 14.0 for c in cams)  # sub-full frames dropped; no chase
 
 
 def test_host_points_only_when_a_host_is_present():

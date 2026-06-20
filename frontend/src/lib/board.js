@@ -29,13 +29,29 @@ export function clearBoard(svg) {
   return defs;
 }
 
-function speak(text, onBoundary) {
-  if (!('speechSynthesis' in window)) return;
+// Returns a Promise that resolves when the line FINISHES (real onend) — so the scheduler waits for
+// actual speech, never cutting a line mid-word by starting the next one (the "audio breaking" bug).
+function speak(text, onBoundary, signal) {
+  if (!('speechSynthesis' in window) || !text) return Promise.resolve();
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  // Word boundaries (where supported) let a concept reveal the instant its word is spoken.
-  if (onBoundary) u.onboundary = (be) => onBoundary(be.charIndex || 0);
-  window.speechSynthesis.speak(u);
+  return new Promise((resolve) => {
+    const u = new SpeechSynthesisUtterance(text);
+    // Word boundaries (where supported) let a concept reveal the instant its word is spoken.
+    if (onBoundary) u.onboundary = (be) => onBoundary(be.charIndex || 0);
+    let done = false;
+    const finish = () => {
+      if (!done) {
+        done = true;
+        resolve();
+      }
+    };
+    u.onend = finish;
+    u.onerror = finish;
+    signal?.addEventListener('abort', finish, { once: true });
+    window.speechSynthesis.speak(u);
+    // Safety: some browsers never fire onend — resolve on a generous estimate so we never hang.
+    setTimeout(finish, Math.max(1500, text.length * 90) + 1800);
+  });
 }
 
 function makeToPx(halfW, halfH) {
@@ -515,9 +531,9 @@ export async function playTimeline(svg, timeline, onEvent, signal) {
         setTimeout(() => fireUpTo(m.char_start || 0), at);
       }
       lipSync('guide', ev.text || '', durMs); // the host's mouth moves with the words
-      speak(ev.text || '', fireUpTo); // real word boundaries reveal concepts as spoken
-      await sleep(durMs, signal);
+      await speak(ev.text || '', fireUpTo, signal); // wait for the REAL speech end — no cutting
       fireUpTo(tlen); // flush anything a boundary/estimate missed
+      await sleep(160, signal); // a short breath between lines (pacing parity with the v3 board)
     } else {
       const p = dispatch(ev);
       if (p) await p;

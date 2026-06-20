@@ -91,8 +91,14 @@ def test_lift_beats_runs_through_the_same_compiler():
     lp = lift_beats(beats, "demo")
     assert len(lp.scenes) == 1 and len(lp.scenes[0].shots) == 2  # one shot per `say`
     assert {e.id for e in lp.scenes[0].entities} == {"sun", "cloud", "tree"}
-    evs = list(compile_plan(lp, SPEC, BOARD))
-    assert any(e["type"] == "draw" for e in evs) and any(e["type"] == "connector" for e in evs)
+    evs = list(compile_plan(lp, SPEC, BOARD))  # SPEC is cartoon
+    assert any(e["type"] == "draw" for e in evs)
+    # cartoon is FILM, not a diagram: NO arrows (the relationship is shown by motion/staging).
+    assert not any(e["type"] == "connector" for e in evs)
+    # whiteboard stays a labeled diagram — there the connector (arrow) IS emitted.
+    wb = direct("the water cycle", style="whiteboard")
+    wb_evs = list(compile_plan(lift_beats(beats, "demo", "whiteboard"), wb, BOARD))
+    assert any(e["type"] == "connector" for e in wb_evs)
 
 
 def test_lift_beats_infers_semantic_roles_in_cartoon():

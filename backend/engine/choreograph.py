@@ -29,20 +29,6 @@ def _draw_of(entries) -> dict[str, str]:
     return out
 
 
-def _op_center(op: dict) -> tuple[float, float] | None:
-    """The board-space center of a draw op (bbox midpoint of its strokes; else its label)."""
-    xs: list[float] = []
-    ys: list[float] = []
-    for s in op.get("strokes") or []:
-        for pt in s.get("points") or []:
-            xs.append(pt[0])
-            ys.append(pt[1])
-    if xs:
-        return (round((min(xs) + max(xs)) / 2, 3), round((min(ys) + max(ys)) / 2, 3))
-    lp = op.get("label_pos")
-    return (lp[0], lp[1]) if lp else None
-
-
 def choreograph(tl: Timeline, *, cinematic: bool = True, host: str = "guide") -> Timeline:
     """Anchor each narrated concept's draw (+ a host point) to its `[concept]` marker.
 
@@ -68,10 +54,9 @@ def choreograph(tl: Timeline, *, cinematic: bool = True, host: str = "guide") ->
         replace(e, at=anchor[e.id], blocking=False) if e.id in anchor else e for e in tl.entries
     ]
 
-    # 1b) the choreographer OWNS concept framing on the timeline path: drop compile_plan's
-    # sequential per-shot concept cameras (the sub-full frames) so they don't fight the anchored
-    # follow below; the full-frame bookends (scene establish + final pull-back) stay. Without this
-    # both camera systems fire on the same track and the fixed follow overrides the shot grammar.
+    # 1b) CALM CAMERA: strip compile_plan's per-shot "cut to focus" cameras (the sub-full frames)
+    # so the lens does NOT chase each concept. Only the full-frame bookends (scene establish + final
+    # pull-back) remain. The motion the eye follows is the SUBJECTS animating — not the camera.
     bw = float((tl.meta.get("board") or {}).get("w") or 14.0)
     entries = [
         e for e in entries if not (e.kind == "camera" and float(e.payload.get("w", bw)) < bw - 1e-6)
@@ -96,42 +81,8 @@ def choreograph(tl: Timeline, *, cinematic: bool = True, host: str = "guide") ->
                     )
                 )
 
-    # 3) the CAMERA follows the narrated concept: a CUT to a medium on each, anchored to its
-    # marker (the #1 shot grammar). cinematic-gated (the still/calm board stays a wide static frame).
-    cams = _follow_cameras(tl, entries, anchor) if cinematic else []
-    return replace(tl, entries=tuple(entries) + tuple(points) + tuple(cams))
-
-
-def _follow_cameras(tl: Timeline, entries: list[TLEntry], anchor: dict[str, str]) -> list[TLEntry]:
-    """One camera per narrated concept, anchored to its word's marker: a CUT (ms=0) to a MEDIUM
-    frame (≈ plan._FRAMING_SCALE['medium'] = 0.6) centered on the concept, clamped on-board. This
-    is the #1 shot grammar applied on the timeline path — each spoken concept is a NEW subject, so
-    we cut to it (rather than the old fixed soft-zoom follow that overrode the framing)."""
-    board = tl.meta.get("board") or {"w": 14.0, "h": 8.0}
-    bw, bh = float(board["w"]), float(board["h"])
-    vw = round(bw * 0.6, 3)  # a medium shot on the concept (the explain distance)
-    vh = round(vw * bh / bw, 3)
-    mx, my = bw / 2 - vw / 2, bh / 2 - vh / 2  # max center offset that keeps the window on-board
-    cams: list[TLEntry] = []
-    seen: set[str] = set()
-    for e in entries:
-        if e.id not in anchor or anchor[e.id] in seen:
-            continue
-        center = _op_center(e.payload.get("op") or {})
-        if center is None:
-            continue
-        seen.add(anchor[e.id])
-        cx = max(-mx, min(mx, center[0]))
-        cy = max(-my, min(my, center[1]))
-        cams.append(
-            TLEntry(
-                id=f"cam_{anchor[e.id]}",
-                track="camera",
-                kind="camera",
-                blocking=False,
-                payload={"x": round(cx, 3), "y": round(cy, 3), "w": vw, "h": vh, "ms": 0},
-                at=anchor[e.id],  # a CUT to the new subject as its word is spoken (#1 grammar)
-                dur_ms=0,
-            )
-        )
-    return cams
+    # 3) NO camera chasing. The animation lives in the SUBJECTS (the process motion), not the lens.
+    # We deliberately do NOT cut/pan to each concept — that read as "the animation is just the camera
+    # moving between objects" (the wrong principle). The calm full-frame bookends from compile_plan
+    # stay; what the eye follows is the subjects animating in a steady wide shot.
+    return replace(tl, entries=tuple(entries) + tuple(points))
