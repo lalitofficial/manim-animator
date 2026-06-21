@@ -307,6 +307,14 @@
         font-size: 12px;
         text-decoration: none;
       }
+      #version-tag {
+        position: fixed;
+        bottom: 6px;
+        right: 10px;
+        z-index: 50;
+        font: 11px ui-monospace, monospace;
+        color: #484f58;
+      }
       /* Clean export surface (?clean=1): no app chrome — just the board + a video-grade caption,
          full-bleed, so a recorder films the lesson, not the UI. */
       body.clean {
@@ -368,6 +376,7 @@
     <div id="provenance"></div>
     <div id="caption"></div>
     <a class="legacy" href="/legacy">v2 board (legacy)</a>
+    <div id="version-tag">v0.3.0</div>
     <script src="/board/engine.js"></script>
   </body>
 </html>

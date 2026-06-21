@@ -107,6 +107,7 @@ async function run(fetcher, label) {
     if (signal.aborted) return;
     spec.set(data.spec);
     caption.set('');
+    runLabel.set('Playing'); // planning is done — playback has begun (was stuck on "Planning…")
     if (data.timeline) {
       await playTimeline(svgEl, data.timeline, onEvent, signal);
     } else {

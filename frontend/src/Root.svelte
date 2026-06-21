@@ -1,6 +1,7 @@
 <script>
   import App from './App.svelte';
   import AssetStudio from './AssetStudio.svelte';
+  import { VERSION } from './lib/version.js';
 
   const VIEWS = [
     { id: 'board', label: 'Board', icon: 'M5 5h14v14H5z M8 8h8v8H8z' },
@@ -45,9 +46,21 @@
       <App />
     {/if}
   </main>
+  <div class="version-tag" title="engine version">v{VERSION}</div>
 </div>
 
 <style>
+  .version-tag {
+    position: fixed;
+    bottom: 6px;
+    right: 10px;
+    z-index: 50;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    opacity: 0.6;
+    pointer-events: none;
+  }
   .root {
     display: flex;
     height: 100vh;

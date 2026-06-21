@@ -193,21 +193,41 @@ async function drawOp(svg, defs, op, toPx, pacing, cartoon, signal) {
 
   if (op.label && op.label_pos) {
     const [lx, ly] = toPx(op.label_pos[0], op.label_pos[1]);
+    const kinetic = op.text_anim === 'kinetic'; // labeled-box backstop: text IS the asset
     const text = document.createElementNS(SVG_NS, 'text');
     text.setAttribute('x', `${lx}`);
     text.setAttribute('y', `${ly + 5}`);
     text.setAttribute('fill', opColor);
     text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('font-size', '15');
-    text.setAttribute('font-weight', cartoon ? '700' : '400');
+    text.setAttribute('font-size', kinetic ? '19' : '15');
+    text.setAttribute('font-weight', kinetic || cartoon ? '700' : '400');
     text.setAttribute('font-family', 'ui-sans-serif, system-ui, sans-serif');
-    text.style.opacity = '0';
-    text.style.transition = 'opacity 280ms ease-in';
-    text.textContent = op.label;
     g.appendChild(text);
-    requestAnimationFrame(() => {
-      text.style.opacity = '1';
-    });
+    if (kinetic) {
+      // Reveal an un-drawable concept WORD BY WORD — sequential typography holds attention where
+      // a static box wouldn't. All words placed up front (opacity 0) so the centered layout is
+      // stable; only the per-word opacity staggers (capped, purposeful).
+      const words = String(op.label).split(/\s+/).filter(Boolean);
+      const step = Math.min(260, Math.max(90, 200 / (pacing.draw_speed || 1)));
+      words.forEach((w, i) => {
+        const tsp = document.createElementNS(SVG_NS, 'tspan');
+        tsp.textContent = (i ? ' ' : '') + w;
+        tsp.style.opacity = '0';
+        tsp.style.transition = 'opacity 220ms ease-out';
+        text.appendChild(tsp);
+        setTimeout(() => {
+          tsp.style.opacity = '1';
+        }, i * step);
+      });
+      maxMs = Math.max(maxMs, (words.length - 1) * step + 240);
+    } else {
+      text.style.opacity = '0';
+      text.style.transition = 'opacity 280ms ease-in';
+      text.textContent = op.label;
+      requestAnimationFrame(() => {
+        text.style.opacity = '1';
+      });
+    }
   }
 
   if (cartoon && op.ambient) {
